@@ -14,8 +14,16 @@ name: Build Windows GUI
 on:
   release:
     types: [published]
+  pull_request:
+    paths:
+      - 'gui/**'
+      - 'smhub_flasher/**'
   push:
-    branches: ['**']
+    branches:
+      - main
+    paths:
+      - 'gui/**'
+      - 'smhub_flasher/**'
   workflow_dispatch:
 
 permissions:
@@ -25,7 +33,7 @@ jobs:
   build-windows-exe:
     name: Build SMHUB-Flasher.exe 🪟
     runs-on: windows-latest
-    if: github.event_name != 'release' || !startsWith(github.event.release.tag_name, 'wdi-')
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'gui-')
 
     defaults:
       run:
@@ -57,7 +65,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install Python dependencies
         run: uv sync --extra build

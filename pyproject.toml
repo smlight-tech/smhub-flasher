@@ -4,7 +4,7 @@ dynamic = ["version"]
 description = "Event-driven asynchronous USB flasher for SMHUB"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 authors = [
     { name = "SMLIGHT", email = "tl@smlight.tech" },
 ]

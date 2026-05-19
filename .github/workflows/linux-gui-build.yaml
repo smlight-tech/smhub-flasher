@@ -7,8 +7,16 @@ name: Build Linux GUI
 on:
   release:
     types: [published]
+  pull_request:
+    paths:
+      - 'gui/**'
+      - 'smhub_flasher/**'
   push:
-    branches: ['**']
+    branches:
+      - main
+    paths:
+      - 'gui/**'
+      - 'smhub_flasher/**'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +26,7 @@ jobs:
   build-linux-app:
     name: Build SMHUB-Flasher 🐧
     runs-on: ubuntu-latest
-    if: github.event_name != 'release' || !startsWith(github.event.release.tag_name, 'wdi-')
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'gui-')
 
     defaults:
       run:
