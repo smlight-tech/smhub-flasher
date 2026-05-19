@@ -6,7 +6,12 @@ on:
   workflow_dispatch:
   release:
     types: [published]
+  pull_request:
+    paths:
+      - 'gui/build-wdi.ps1'
   push:
+    branches:
+      - main
     paths:
       - 'gui/build-wdi.ps1'
 

@@ -2,7 +2,7 @@
 name = "smhub-flasher-gui"
 version = "0.1.0"
 description = "Desktop GUI wrapper for smhub-flasher"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
     "smhub-flasher",
     "pywebview>=5.0",
