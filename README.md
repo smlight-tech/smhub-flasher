@@ -1,8 +1,8 @@
 # SMHUB USB Flasher
 
-A utility for flashing OS firmware images onto the SMHUB over USB.
+A simple, automated tool for flashing and recovering the SMHUB operating system over a direct USB connection.
 
-The process is fully automatic: the tool speaks directly to the chip's BootROM, negotiates a dynamic U-Boot bootloader into DRAM, then streams the disk image to the board's eMMC.
+Whether you are getting a fresh start or recovering a completely unbootable hub, this tool handles the entire process for you automatically.
 
 ## 🖥️ 1. Graphical Interface (GUI)
 
@@ -103,12 +103,9 @@ options:
   --expert-help         Show help for advanced / expert-only options
 ```
 
-### Expert Options
+### Advanced & Technical Details
 
-The flasher also contains several advanced commands for development and slot-based flashing. See the [Expert Mode Features](docs/expert-mode.md) documentation for full details on testing bootloaders (`--test-bootloader`), slot-based flashing (`--kernel`, `--rootfs`, `--slot`), and standalone bootloader flashing (`--flash-bootloader`).
-
-
-
+For developers and power users, the flasher contains several advanced capabilities. See the [Advanced & Technical Details](https://github.com/smlight-tech/smhub-flasher/blob/main/docs/advanced-technical-details.md) page for full details on slot-based flashing, bootloader testing, running from source, and deep-dive architectural documentation on the internal state machine.
 
 
 ## 🔧 Troubleshooting
