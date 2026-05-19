@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args:
+          - --skip=apps_configs/*,tests,./.*
+          # - --quiet-level=2
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        files: ^smhub_flasher
+        exclude: ^(venv|\.venv)/
+        args: 
+          - --ignore-missing-imports
+  
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.6
+    hooks:
+      - id: ruff-check
+        args:
+          - --fix
+        files: ^smhub_flasher/
+      - id: ruff-format
+        files: ^smhub_flasher/

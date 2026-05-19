@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 SMLIGHT
+
+app-id: tech.smlight.SMHUBFlasher
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: smhub-flasher-gui
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=x11
+  - --socket=fallback-x11
+  - --device=all
+  - --device=dri
+  - --filesystem=host
+  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
+  - --env=GDK_BACKEND=x11
+
+build-options:
+  build-args:
+    - --share=network
+
+modules:
+  - name: smhub-flasher-gui
+    buildsystem: simple
+    build-commands:
+      # Install fastboot
+      - install -D -m755 platform-tools/fastboot /app/bin/fastboot
+      # Install Desktop & Metainfo files
+      - install -D -m644 tech.smlight.SMHUBFlasher.desktop /app/share/applications/tech.smlight.SMHUBFlasher.desktop
+      - install -D -m644 tech.smlight.SMHUBFlasher.metainfo.xml /app/share/metainfo/tech.smlight.SMHUBFlasher.metainfo.xml
+      - install -D -m644 png/icon.png /app/share/icons/hicolor/256x256/apps/tech.smlight.SMHUBFlasher.png
+      - install -D -m644 png/icon@2x.png /app/share/icons/hicolor/512x512/apps/tech.smlight.SMHUBFlasher.png
+      # Install Python dependencies
+      - pip3 install --prefix=/app --ignore-installed pywebview pyusb fastcrc tqdm colorama packaging rich pyudev PyGObject certifi libusb-package
+      # Install CLI package
+      - SETUPTOOLS_SCM_PRETEND_VERSION=0.9.3 pip3 install --prefix=/app --ignore-installed .
+      # Install GUI files
+      - mkdir -p /app/share/smhub-flasher-gui
+      - cp gui/app.py gui/flasher_runner.py gui/driver_check.py /app/share/smhub-flasher-gui/
+      - cp -r gui/web /app/share/smhub-flasher-gui/web
+      # Install launcher
+      - install -D -m755 run.sh /app/bin/smhub-flasher-gui
+    sources:
+      - type: archive
+        url: https://dl.google.com/android/repository/platform-tools_r35.0.1-linux.zip
+        sha256: 823d270be01444828ccd09e94209ff394fb8a8457243e1c15689fe0544acbc72
+        strip-components: 0
+      - type: file
+        path: tech.smlight.SMHUBFlasher.desktop
+      - type: file
+        path: tech.smlight.SMHUBFlasher.metainfo.xml
+      - type: dir
+        path: .
+      - type: script
+        dest-filename: run.sh
+        commands:
+          - exec python3 /app/share/smhub-flasher-gui/app.py

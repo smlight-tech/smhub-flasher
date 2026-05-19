@@ -1,0 +1,11 @@
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+smhub_flasher/_version.py
+.*cache/
+dev/
+.claude/
+windows_gui/dist/

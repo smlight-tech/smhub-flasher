@@ -1,0 +1,55 @@
+{
+  "$schema": "https://updates.smlight.tech/firmware/smhub/schema/smhub-firmware-v1.json",
+  "manifest_version": 1,
+  "generated_at": "2026-04-17T23:00:00Z",
+  "product": "smhub",
+  "releases": [
+    {
+      "version": "0.9.9",
+      "channel": "stable",
+      "released_at": "2026-04-05T14:18:06Z",
+      "notes": "Stable release.",
+      "notes_url": null,
+      "requires_flasher": ">=0.1.0",
+      "fastboot": false,
+      "artifacts": {
+        "firmware": {
+          "url": "https://updates.smlight.tech/firmware/smhub/os/smhub_os_v0.9.9.zip",
+          "size_bytes": 300710465,
+          "sha256": "b46acdf437370e1b0856320fe1f04825a062c09624ff94d7f763397e619ad8f1"
+        }
+      }
+    },
+    {
+      "version": "1.0.0.dev3",
+      "channel": "beta",
+      "released_at": "2026-04-17T21:44:22Z",
+      "notes": "Pre-release \u2014 development build. Report issues before use in production.",
+      "notes_url": null,
+      "requires_flasher": ">=0.1.0",
+      "artifacts": {
+        "firmware": {
+          "url": "https://updates.smlight.tech/firmware/smhub/os/smhub_os_v1.0.0.dev3.zip",
+          "size_bytes": 302695427,
+          "sha256": "e65ff07fd16ade4a5bc1ae71115d8b531ad7ebbb17eebbd97edaa076fc81fbc7"
+        }
+      }
+    },
+    {
+      "version": "1.0.0.dev4",
+      "channel": "beta",
+      "released_at": "2026-04-25T04:19:41Z",
+      "notes": "Beta Release introducing fastboot flasher",
+      "notes_url": "https://updates.smlight.tech/firmware/smhub/os/smhub_os_v1.0.0.dev4.md",
+      "requires_flasher": ">=0.1.0",
+      "fastboot": true,
+      "artifacts": {
+        "firmware": {
+          "url": "https://updates.smlight.tech/firmware/smhub/os/smhub_os_v1.0.0.dev4.zip",
+          "size_bytes": 301240484,
+          "sha256": "84d1ae742ccce2fe6eb505a38fd29b9bc36e5fa612640e0cb8a122067d749d42"
+        }
+      }
+    }
+  ]
+}

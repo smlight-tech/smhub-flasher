@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 SMLIGHT
+#
+# Gitea:  requires a Windows self-hosted runner registered with the label
+#         "windows-latest".  Register one with:
+#           ./act_runner register --labels windows-latest
+#         run on a Windows host.
+#
+# GitHub: works out-of-the-box with the hosted windows-latest runner.
+#         Copy this file to .github/workflows/ (no changes needed).
+
+name: Build Windows GUI
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-exe:
+    name: Build SMHUB-Flasher.exe 🪟
+    runs-on: windows-latest
+    if: github.event_name != 'release' || !startsWith(github.event.release.tag_name, 'wdi-')
+
+    defaults:
+      run:
+        working-directory: gui
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download smhub-simple.exe from latest wdi-* release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Fetch the latest release that starts with 'wdi-' using JSON to avoid string parsing bugs
+          $tag = gh release list --limit 50 --json tagName | ConvertFrom-Json | Where-Object { $_.tagName -match "^wdi-" } | Select-Object -ExpandProperty tagName -First 1
+          if (-not $tag) {
+            Write-Host "No wdi- release found. Attempting to use committed vendor\smhub-simple.exe as fallback."
+            if (-not (Test-Path "vendor\smhub-simple.exe")) {
+              throw "vendor\smhub-simple.exe missing and no wdi- release found on GitHub!"
+            }
+          } else {
+            Write-Host "Downloading smhub-simple.exe from release: $tag"
+            gh release download $tag --pattern "smhub-simple.exe" --dir vendor --clobber
+          }
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: uv sync --extra build
+
+      - name: Verify smhub-simple.exe exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "vendor\smhub-simple.exe")) {
+            throw "vendor\smhub-simple.exe missing! Did you commit it or download it?"
+          }
+      - name: Download Google platform-tools (fastboot.exe)
+        shell: pwsh
+        run: |
+          $url = "https://dl.google.com/android/repository/platform-tools_r35.0.1-win.zip"
+          Invoke-WebRequest -Uri $url -OutFile "vendor\platform-tools.zip"
+          Expand-Archive -Path "vendor\platform-tools.zip" -DestinationPath "vendor\_pt"
+          Copy-Item "vendor\_pt\platform-tools\fastboot.exe"     "vendor\fastboot.exe"     -Force
+          Copy-Item "vendor\_pt\platform-tools\AdbWinApi.dll"    "vendor\AdbWinApi.dll"    -Force
+          Copy-Item "vendor\_pt\platform-tools\AdbWinUsbApi.dll" "vendor\AdbWinUsbApi.dll" -Force
+          Remove-Item -Recurse -Force "vendor\_pt"
+          Remove-Item "vendor\platform-tools.zip"
+          Write-Host "fastboot.exe downloaded: $((Get-Item 'vendor\fastboot.exe').Length) bytes"
+
+      - name: Build with PyInstaller
+        shell: pwsh
+        run: |
+          $repoRoot   = (Resolve-Path "..").Path
+          $flasherPkg = Join-Path $repoRoot "smhub_flasher"
+          uv run pyinstaller `
+            --noconfirm `
+            --clean `
+            --name "SMHUB-Flasher" `
+            --windowed `
+            --onefile `
+            --icon "$repoRoot\png\icon.png" `
+            --add-data "web;web" `
+            --add-data "vendor\smhub-simple.exe;vendor" `
+            --add-data "vendor\fastboot.exe;." `
+            --add-data "vendor\AdbWinApi.dll;." `
+            --add-data "vendor\AdbWinUsbApi.dll;." `
+            --add-data "$flasherPkg;smhub_flasher" `
+            --hidden-import "usb.backend.libusb1" `
+            --hidden-import "fastcrc" `
+            --hidden-import "packaging.version" `
+            --collect-all "webview" `
+            --collect-all "libusb_package" `
+            --collect-all "rich" `
+            app.py
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          $exe = "dist\SMHUB-Flasher.exe"
+          if (-not (Test-Path $exe)) { throw "Build failed: $exe not found" }
+          $size = (Get-Item $exe).Length / 1MB
+          Write-Host ("SMHUB-Flasher.exe built successfully ({0:N1} MB)" -f $size)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SMHUB-Flasher-windows
+          path: gui/dist/SMHUB-Flasher.exe
+
+      - name: Attach .exe to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: gui/dist/SMHUB-Flasher.exe

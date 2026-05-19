@@ -1,0 +1,154 @@
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+  Copyright (C) 2026 SMLIGHT
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SMHUB Flasher</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>SMHUB Flasher</h1>
+    <span id="status-pill" class="pill idle">Idle</span>
+  </header>
+
+  <main>
+    <!-- Driver check screen -->
+    <section id="screen-driver" class="screen hidden">
+      <h2 id="driver-title">One-time USB driver setup</h2>
+      <p id="driver-desc">
+        Windows needs permission to access the SMHUB over USB. Click
+        Install — you'll see a standard Windows UAC prompt. Once approved, the driver will install silently in the background.
+      </p>
+      <div id="driver-linux-instructions" class="hidden" style="position:relative; margin-bottom:15px; margin-top:8px;">
+        <pre id="driver-linux-code" tabindex="0" style="margin-top:0; padding:12px; padding-right:60px; line-height:1.5;">cat &lt;&lt; 'EOF' | sudo tee /etc/udev/rules.d/99-smhub-flasher.rules
+SUBSYSTEM=="usb", ATTR{idVendor}=="3346", ATTR{idProduct}=="1000", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="4ee0", MODE="0666"
+EOF
+sudo udevadm control --reload-rules
+sudo udevadm trigger</pre>
+        <button id="btn-copy-udev" style="position:absolute; top:8px; right:8px; padding:4px 10px; font-size:11px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); color:#d8deea; border-radius:4px; cursor:pointer; transition:background 0.15s;">Copy</button>
+      </div>
+      <div class="driver-step">
+        <div class="driver-label">
+          <strong id="driver-name">SMHUB bootloader driver</strong>
+          <span id="driver-status-1" class="driver-status"></span>
+        </div>
+        <button id="btn-install-driver" class="primary">Install</button>
+      </div>
+      <button id="btn-driver-continue" class="primary" disabled>Continue</button>
+    </section>
+
+    <!-- Main flashing screen -->
+    <section id="screen-main" class="screen hidden">
+      <div class="tabs">
+        <button class="tab active" data-mode="online" type="button">Online firmware</button>
+        <button class="tab" data-mode="local" type="button">Local folder</button>
+      </div>
+
+      <!-- Online mode panel -->
+      <div id="panel-online" class="panel" style="display:flex; gap:16px;">
+        <div style="flex:1;">
+          <div class="row top-row">
+            <div class="field half">
+              <label>Channel</label>
+              <select id="online-channel"></select>
+            </div>
+            <div class="field half">
+              <label>Version</label>
+              <select id="online-version"></select>
+            </div>
+          </div>
+          <div id="online-info" class="hint"></div>
+          <div class="row cache-row">
+            <label class="inline">
+              <input type="checkbox" id="force-redownload" />
+              <span>Force re-download</span>
+            </label>
+            <div id="cache-info" class="hint" style="flex:1; margin:0"></div>
+          </div>
+          <div id="manifest-status" class="hint"></div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:24px; width:120px;">
+          <button id="btn-release-notes" type="button" class="hidden" title="View Release Notes">Release Notes</button>
+          <button id="btn-refresh-manifest" type="button">Refresh</button>
+          <button id="btn-clear-cache" type="button" class="ghost" style="margin-top:auto;">Clear Cache</button>
+        </div>
+      </div>
+
+      <!-- Local mode panel -->
+      <div id="panel-local" class="panel hidden">
+        <div class="field">
+          <label>Firmware folder</label>
+          <div class="row">
+            <input type="text" id="folder-path" placeholder="Select a folder containing fip.bin and emmc.img" readonly />
+            <button id="btn-pick-folder" type="button">Browse…</button>
+          </div>
+          <div id="folder-status" class="hint"></div>
+        </div>
+      </div>
+
+      <div class="stepper">
+        <div class="step" data-phase="BootROM Detection">1. Detect device</div>
+        <div class="step" data-phase="BootROM Handshake">2. Handshake</div>
+        <div class="step" data-phase="U-Boot Load">3. Load U-Boot</div>
+        <div class="step" data-phase="eMMC Flash">4. Flash eMMC</div>
+        <div class="step" data-phase="Done">5. Done</div>
+      </div>
+
+      <div class="field">
+        <div class="progress-wrap">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <div class="progress-row">
+          <div id="progress-text" class="hint">Idle</div>
+          <div class="timer-group">
+            <span id="timer" class="hint timer">00:00</span>
+            <span id="eta" class="hint eta hidden"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btn-start" class="primary" disabled>Start flashing</button>
+        <button id="btn-cancel" disabled>Cancel</button>
+      </div>
+
+      <details class="log-details">
+        <summary>
+          Log output
+          <span class="log-actions">
+            <button id="btn-copy-log" type="button">Copy</button>
+            <button id="btn-clear-log" type="button">Clear</button>
+          </span>
+        </summary>
+        <pre id="log" tabindex="0"></pre>
+      </details>
+    </section>
+  </main>
+
+  <!-- Release Notes Modal -->
+  <div id="notes-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="notes-title">Release Notes</h2>
+        <button id="btn-close-notes" class="ghost" style="padding:4px 8px; font-size:16px;">&times;</button>
+      </div>
+      <div id="notes-body" class="modal-body markdown-body">
+        Loading...
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>© 2026 SMLIGHT · GPLv3</span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

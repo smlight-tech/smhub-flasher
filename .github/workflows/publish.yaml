@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 SMLIGHT
+
+name: Upload Python Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-dist:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v8.1.0
+      with:
+        python-version: '3.14'
+
+    - name: Build package
+      run: uv build
+
+    - name: upload release dist
+      uses: actions/upload-artifact@v7
+      with:
+        name: release-dists
+        path: dist/
+
+
+  pypi-publish:
+    name: Publish package to PyPi
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/smhub-flasher
+    needs:
+      - build-dist
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists
+          path: dist/
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1

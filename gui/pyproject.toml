@@ -1,0 +1,30 @@
+[project]
+name = "smhub-flasher-gui"
+version = "0.1.0"
+description = "Desktop GUI wrapper for smhub-flasher"
+requires-python = ">=3.10"
+dependencies = [
+    "smhub-flasher",
+    "pywebview>=5.0",
+    "pyusb>=1.2.1",
+    "libusb-package",
+    "fastcrc>=0.3.0",
+    "tqdm>=4.66.0",
+    "colorama>=0.4.6",
+    "packaging>=26.2",
+    "rich>=15.0.0",
+    "pywin32>=306; sys_platform == 'win32'",
+    "PyGObject>=3.42.0; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.0",
+    "Pillow>=10.0.0",
+]
+
+[tool.uv]
+managed = true
+
+[tool.uv.sources]
+smhub-flasher = { path = "..", editable = true }

@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 SMLIGHT
+
+name: Build smhub-simple.exe
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    paths:
+      - 'gui/build-wdi.ps1'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'wdi-')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Run build-wdi.ps1
+        shell: pwsh
+        run: |
+          cd gui
+          .\build-wdi.ps1
+
+      - name: Upload smhub-simple.exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: smhub-simple.exe
+          path: gui\vendor\smhub-simple.exe
+
+      - name: Attach smhub-simple.exe to GitHub release
+        if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'wdi-')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: gui/vendor/smhub-simple.exe

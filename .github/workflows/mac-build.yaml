@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 SMLIGHT
+# Creates a .dmg for distribution.
+
+name: Build MacOS GUI
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos-app:
+    name: Build SMHUB-Flasher.app 🍏
+    runs-on: macos-latest
+    if: github.event_name != 'release' || !startsWith(github.event.release.tag_name, 'wdi-')
+
+    defaults:
+      run:
+        working-directory: gui
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: uv sync --extra build
+
+      - name: Download Google platform-tools (fastboot)
+        run: |
+          mkdir -p vendor
+          url="https://dl.google.com/android/repository/platform-tools_r35.0.1-darwin.zip"
+          curl -L "$url" -o "vendor/platform-tools.zip"
+          unzip -q "vendor/platform-tools.zip" -d "vendor/_pt"
+          cp "vendor/_pt/platform-tools/fastboot" "vendor/fastboot"
+          chmod +x "vendor/fastboot"
+          rm -rf "vendor/_pt" "vendor/platform-tools.zip"
+          echo "fastboot downloaded: $(wc -c < vendor/fastboot | tr -d ' ') bytes"
+
+      - name: Build with PyInstaller
+        run: |
+          repoRoot=$(cd .. && pwd)
+          flasherPkg="$repoRoot/smhub_flasher"
+          
+          # Mac uses ':' as the path separator in --add-data
+          uv run pyinstaller \
+            --noconfirm \
+            --clean \
+            --name "SMHUB-Flasher" \
+            --windowed \
+            --icon "$repoRoot/png/icon.png" \
+            --add-data "web:web" \
+            --add-data "vendor/fastboot:." \
+            --add-data "$flasherPkg:smhub_flasher" \
+            --hidden-import "usb.backend.libusb1" \
+            --hidden-import "fastcrc" \
+            --hidden-import "packaging.version" \
+            --collect-all "webview" \
+            --collect-all "libusb_package" \
+            --collect-all "rich" \
+            --collect-all "certifi" \
+            app.py
+
+      - name: Verify output & Package DMG
+        run: |
+          app_bundle="dist/SMHUB-Flasher.app"
+          if [ ! -d "$app_bundle" ]; then
+            echo "Build failed: $app_bundle not found"
+            exit 1
+          fi
+          
+          dmg_file="dist/SMHUB-Flasher-Mac.dmg"
+          hdiutil create -volname "SMHUB-Flasher" -srcfolder "$app_bundle" -ov -format UDZO "$dmg_file"
+          
+          echo "SMHUB-Flasher packaged successfully to DMG"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SMHUB-Flasher-macos
+          path: gui/dist/SMHUB-Flasher-Mac.dmg
+
+      - name: Attach .dmg to GitHub release
+        if: false # github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: gui/dist/SMHUB-Flasher-Mac.dmg

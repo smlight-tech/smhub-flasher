@@ -1,0 +1,15 @@
+# SG2000 BootROM and U-Boot Flashing Rules
+# Grants USB bus access to the dialout group so the flasher avoids needing `sudo`.
+# Ignores the bootloader in ModemManager so it does not intercept the flashing flow.
+
+# Vendor: 3346 (Cvitek / Sophgo) - BootROM
+SUBSYSTEM=="usb", ATTRS{idVendor}=="3346", ATTRS{idProduct}=="1000", MODE="0664", GROUP="dialout", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Vendor: 3346 (Cvitek / Sophgo) - U-Boot
+SUBSYSTEM=="usb", ATTRS{idVendor}=="3346", ATTRS{idProduct}=="1001", MODE="0664", GROUP="dialout", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Vendor: 30B1 (Alternative) - BootROM
+SUBSYSTEM=="usb", ATTRS{idVendor}=="30b1", ATTRS{idProduct}=="1000", MODE="0664", GROUP="dialout", ENV{ID_MM_DEVICE_IGNORE}="1"
+
+# Vendor: 30B1 (Alternative) - U-Boot
+SUBSYSTEM=="usb", ATTRS{idVendor}=="30b1", ATTRS{idProduct}=="1001", MODE="0664", GROUP="dialout", ENV{ID_MM_DEVICE_IGNORE}="1"

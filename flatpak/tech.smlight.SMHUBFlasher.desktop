@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=SMHUB Flasher
+Comment=Firmware flasher for SMLIGHT SMHUB devices
+Exec=smhub-flasher-gui
+Icon=tech.smlight.SMHUBFlasher
+Terminal=false
+Type=Application
+Categories=Utility;HardwareSettings;

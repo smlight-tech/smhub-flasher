@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://updates.smlight.tech/firmware/smhub/schema/smhub-firmware-v1.json",
+  "title": "SMHUB Firmware Manifest Schema",
+  "description": "Validation schema for SMHUB firmware distribution manifests.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URI of the JSON Schema"
+    },
+    "manifest_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema format version"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp indicating when the manifest was generated."
+    },
+    "product": {
+      "type": "string",
+      "const": "smhub",
+      "description": "Target hardware product identifier."
+    },
+    "releases": {
+      "type": "array",
+      "description": "Array of publicly available firmware releases.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Distinct firmware version string (e.g., 0.9.9)."
+          },
+          "channel": {
+            "type": "string",
+            "description": "Release category natively driving discovery (e.g., stable, beta)."
+          },
+          "released_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the release publication."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional markdown-formatted release notes."
+          },
+          "notes_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Optional URI to detailed technical release bulletins."
+          },
+          "requires_flasher": {
+            "type": "string",
+            "description": "Semantic version constraints for compatible flasher tools."
+          },
+          "fastboot": {
+            "type": "boolean",
+            "description": "True if standard Android Fastboot initialization is required."
+          },
+          "artifacts": {
+            "type": "object",
+            "properties": {
+              "firmware": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Direct download URL for the firmware ZIP."
+                  },
+                  "size_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Exact size of the artifact in bytes."
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-fA-F0-9]{64}$",
+                    "description": "SHA256 checksum of the target ZIP artifact."
+                  }
+                },
+                "required": [
+                  "url",
+                  "size_bytes",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "firmware"
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "channel",
+          "released_at",
+          "artifacts"
+        ]
+      }
+    }
+  },
+  "required": [
+    "manifest_version",
+    "product",
+    "releases"
+  ]
+}

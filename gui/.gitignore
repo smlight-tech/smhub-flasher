@@ -1,0 +1,26 @@
+# Build artifacts
+build/
+dist/
+*.spec
+__pycache__/
+*.pyc
+
+# Virtualenv
+.venv/
+venv/
+
+# Downloaded/temporary firmware zips
+*.zip
+
+# Vendor binary is large and downloaded during build
+vendor/libwdi*
+vendor/zadig.exe
+vendor/fastboot.exe
+vendor/AdbWinApi.dll
+vendor/AdbWinUsbApi.dll
+vendor/_pt/
+vendor/platform-tools.zip
+
+# IDE
+.vscode/
+.idea/

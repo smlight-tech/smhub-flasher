@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 SMLIGHT
+# Creates an executable for distribution.
+
+name: Build Linux GUI
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-app:
+    name: Build SMHUB-Flasher 🐧
+    runs-on: ubuntu-latest
+    if: github.event_name != 'release' || !startsWith(github.event.release.tag_name, 'wdi-')
+
+    defaults:
+      run:
+        working-directory: gui
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Flatpak build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+
+      - name: Build Flatpak
+        run: |
+          cd ..
+          ./flatpak/build-flatpak.sh
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMHUB-Flasher-flatpak
+          path: SMHUB-Flasher.flatpak
+
+      - name: Attach Flatpak to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: SMHUB-Flasher.flatpak
