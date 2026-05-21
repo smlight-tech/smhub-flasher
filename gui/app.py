@@ -33,6 +33,19 @@ def _excepthook(exc_type, exc_value, exc_tb):  # type: ignore[no-untyped-def]
 sys.excepthook = _excepthook
 _log_crash(f"=== startup === argv={sys.argv} frozen={getattr(sys, 'frozen', False)} executable={sys.executable}")
 
+# PyInstaller on macOS may launch helper subprocesses via sys.executable with
+# Python-style arguments (for example multiprocessing.resource_tracker).
+if sys.platform == "darwin" and getattr(sys, "frozen", False) and "-c" in sys.argv:
+    try:
+        c_idx = sys.argv.index("-c")
+        code = sys.argv[c_idx + 1] if c_idx + 1 < len(sys.argv) else ""
+    except Exception:
+        code = ""
+
+    if code:
+        exec(code, {"__name__": "__main__"})
+        sys.exit(0)
+
 # Re-entrant dispatch: when the frozen .exe is invoked with --run-flasher,
 # delegate to the bundled smhub_flasher CLI instead of launching the GUI.
 # This lets flasher_runner.py spawn the CLI as a subprocess via sys.executable.
