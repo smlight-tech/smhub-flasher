@@ -102,7 +102,7 @@ class UsbTransport:
             self._claimed_intf = None
             try:
                 usb.util.claim_interface(self.device, self.intf_number)
-                self._claimed_intf: int | None = self.intf_number
+                self._claimed_intf = self.intf_number
                 logger.debug(f"Claimed interface {self.intf_number}")
             except usb.USBError as e:
                 logger.debug(f"claim_interface({self.intf_number}) failed: {e}")
@@ -116,7 +116,9 @@ class UsbTransport:
     def _open_cdc_line(self) -> None:
         """Send CDC line coding and control state to open the virtual serial port."""
         if sys.platform == "linux" or self.device is None or self.intf_number is None:
-            logger.debug("Skipping CDC line open (not required on Linux, or missing device info)")
+            logger.debug(
+                "Skipping CDC line open (not required on Linux, or missing device info)"
+            )
             return
 
         try:

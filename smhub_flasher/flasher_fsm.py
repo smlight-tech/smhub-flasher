@@ -641,7 +641,8 @@ class FlasherFSM:
             out_str = line_bytes.decode("utf-8", errors="replace").strip()
             if out_str:
                 error_log.append(out_str)
-                logger.info(f"      [fastboot] {out_str}")
+                if events.JSON_FD_OBJ is not None:
+                    logger.info(f"      [fastboot] {out_str}")
                 match = send_re.search(out_str)
                 if pbar and match:
                     pbar.update(int(match.group(1)) * 1024)
