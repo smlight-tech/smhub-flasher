@@ -224,9 +224,14 @@ async def async_main() -> None:
             logger.error(f"Failed to fetch images: {e}")
         sys.exit(0)
 
+    fw_version: str | None = None
+    fw_channel: str | None = None
+
     if args.online:
         try:
             channel, version, release = dl.resolve_version(args.online)
+            fw_version = version
+            fw_channel = channel
             notes_url = release.get("notes_url")
             if notes_url:
                 try:
@@ -329,6 +334,9 @@ async def async_main() -> None:
     else:
         logger.info("  Mode:  [magenta]CVI Update (Legacy)[/magenta]")
 
+    if fw_version:
+        channel_tag = f" [dim]({fw_channel})[/dim]" if fw_channel else ""
+        logger.info(f"  Version: [cyan]{fw_version}[/cyan]{channel_tag}")
     logger.info(f"  FIP:   [white]{fip_path}[/white]")
 
     if test_bootloader:
