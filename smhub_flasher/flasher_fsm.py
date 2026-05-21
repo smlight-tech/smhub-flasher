@@ -259,9 +259,20 @@ class FlasherFSM:
             )
 
             magic_size = os.path.getsize(self.magic_path)
-            await self.transport.send_file_chunked(
-                self.magic_path, DUMMY_ADDR, is_magic=True, chunk_size=magic_size + 8
-            )
+            try:
+                await self.transport.send_file_chunked(
+                    self.magic_path,
+                    DUMMY_ADDR,
+                    is_magic=True,
+                    chunk_size=magic_size + 8,
+                )
+            except Exception as e:
+                logger.debug(f"Stage 2 magic transfer interrupted; retrying wait: {e}")
+                self.transport.close()
+                spinner.cancel()
+                await asyncio.gather(spinner, return_exceptions=True)
+                self.state = "WAIT_UBOOT"
+                return
 
             ret = self.transport.last_ack_packet
             if ret and len(ret) >= 16:
@@ -307,31 +318,43 @@ class FlasherFSM:
                         )
 
             total_fip = os.path.getsize(self.fip_path)
-            await self.transport.send_file_chunked(
-                self.fip_path,
-                0,
-                is_magic=False,
-                chunk_size=512,
-                max_bytes=fip_req_size,
-                start_offset=fip_req_offset,
-                progress_callback=_fip_progress,
-                progress_base=fip_req_offset,
-                progress_total=total_fip,
-            )
+            try:
+                await self.transport.send_file_chunked(
+                    self.fip_path,
+                    0,
+                    is_magic=False,
+                    chunk_size=512,
+                    max_bytes=fip_req_size,
+                    start_offset=fip_req_offset,
+                    progress_callback=_fip_progress,
+                    progress_base=fip_req_offset,
+                    progress_total=total_fip,
+                )
+
+                flag = USB_DL_FLAG_NORMAL
+                logger.debug(
+                    "Setting boot flag: 1NGM (required by FSBL / U-Boot Fastboot)"
+                )
+                await self.transport.send_req_data(
+                    CVI_USB_TX_FLAG, 0x0E000004, 12, ack=True, data=flag
+                )
+
+                await self.transport.send_req_data(
+                    CV_USB_BREAK, DUMMY_ADDR, 0, ack=False
+                )
+            except Exception as e:
+                logger.debug(f"Stage 2 transfer interrupted; retrying wait: {e}")
+                self.transport.close()
+                spinner.cancel()
+                await asyncio.gather(spinner, return_exceptions=True)
+                self.state = "WAIT_UBOOT"
+                return
+
+            self.transport.close()
 
             is_final_chunk = fip_req_offset + fip_req_size >= os.path.getsize(
                 self.fip_path
             )
-
-            flag = USB_DL_FLAG_NORMAL
-            logger.debug("Setting boot flag: 1NGM (required by FSBL / U-Boot Fastboot)")
-            await self.transport.send_req_data(
-                CVI_USB_TX_FLAG, 0x0E000004, 12, ack=True, data=flag
-            )
-
-            await self.transport.send_req_data(CV_USB_BREAK, DUMMY_ADDR, 0, ack=False)
-
-            self.transport.close()
 
             if is_final_chunk:
                 spinner.cancel()

@@ -99,6 +99,14 @@ class PollingUsbMonitor:
         pid: int | None = None,
     ) -> tuple[str, int, int, str]:
         while True:
+            if "add" in actions:
+                for e_vid, e_pid, _bus, _addr in self._snapshot():
+                    if vid is not None and e_vid != vid:
+                        continue
+                    if pid is not None and e_pid != pid:
+                        continue
+                    return "add", e_vid, e_pid, ""
+
             action, e_vid, e_pid, node = await self.event_queue.get()
             if action not in actions:
                 continue
