@@ -61,8 +61,8 @@ if (-not (Test-Path $flasherPkg)) {
 # 5. PyInstaller
 Write-Host ">> Building executable" -ForegroundColor Cyan
 
-# fastboot.exe + ADB DLLs need to live at the root of the bundle so the
-# upstream smhub_flasher.main.resource_path("fastboot.exe") finds them.
+# fastboot.exe + ADB DLLs must be in smhub_flasher resources so
+# flasher_fsm._resolve_fastboot_bin() and fastboot DLL loading work reliably.
 uv run pyinstaller `
   --noconfirm `
   --clean `
@@ -71,9 +71,9 @@ uv run pyinstaller `
   --onefile `
   --add-data "web;web" `
   --add-data "vendor\smhub-simple.exe;vendor" `
-  --add-data "vendor\fastboot.exe;." `
-  --add-data "vendor\AdbWinApi.dll;." `
-  --add-data "vendor\AdbWinUsbApi.dll;." `
+  --add-data "vendor\fastboot.exe;smhub_flasher" `
+  --add-data "vendor\AdbWinApi.dll;smhub_flasher" `
+  --add-data "vendor\AdbWinUsbApi.dll;smhub_flasher" `
   --add-data "$flasherPkg;smhub_flasher" `
   --hidden-import "usb.backend.libusb1" `
   --hidden-import "fastcrc" `
