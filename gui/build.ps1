@@ -58,31 +58,9 @@ if (-not (Test-Path $flasherPkg)) {
   exit 1
 }
 
-# 5. PyInstaller
-Write-Host ">> Building executable" -ForegroundColor Cyan
-
-# fastboot.exe + ADB DLLs must be in smhub_flasher resources so
-# flasher_fsm._resolve_fastboot_bin() and fastboot DLL loading work reliably.
-uv run pyinstaller `
-  --noconfirm `
-  --clean `
-  --name "SMHUB-Flasher" `
-  --windowed `
-  --onefile `
-  --add-data "web;web" `
-  --add-data "vendor\smhub-simple.exe;vendor" `
-  --add-data "vendor\fastboot.exe;smhub_flasher" `
-  --add-data "vendor\AdbWinApi.dll;smhub_flasher" `
-  --add-data "vendor\AdbWinUsbApi.dll;smhub_flasher" `
-  --add-data "$flasherPkg;smhub_flasher" `
-  --hidden-import "usb.backend.libusb1" `
-  --hidden-import "fastcrc" `
-  --hidden-import "packaging.version" `
-  --hidden-import "tqdm" `
-  --collect-all "webview" `
-  --collect-all "libusb_package" `
-  --collect-all "rich" `
-  app.py
+# 5. Icon + PyInstaller (via build_helper.py)
+$iconPng = Join-Path $repoRoot "png\icon.png"
+uv run python win_build_helper.py --icon-png "$iconPng" --flasher-pkg "$flasherPkg"
 
 Write-Host ""
 Write-Host ">> Done. Output: dist\SMHUB-Flasher.exe" -ForegroundColor Green
