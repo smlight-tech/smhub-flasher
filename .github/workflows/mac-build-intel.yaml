@@ -102,7 +102,7 @@ jobs:
           path: gui/dist/SMHUB-Flasher-Mac-Intel.dmg
 
       - name: Attach .dmg to GitHub release
-        if: false # github.event_name == 'release'
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v3
         with:
           files: gui/dist/SMHUB-Flasher-Mac-Intel.dmg
