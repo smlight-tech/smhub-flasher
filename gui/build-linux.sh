@@ -58,7 +58,7 @@ uv run pyinstaller \
   --windowed \
   --onefile \
   --add-data "web:web" \
-  --add-data "vendor/fastboot:." \
+  --add-data "vendor/fastboot:smhub_flasher" \
   --add-data "$FLASHER_PKG:smhub_flasher" \
   --hidden-import "usb.backend.libusb1" \
   --hidden-import "fastcrc" \

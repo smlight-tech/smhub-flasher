@@ -99,51 +99,48 @@ class UsbTransport:
             raise RuntimeError("Could not find Bulk IN/OUT endpoints")
 
         if self.intf_number is not None:
+            self._claimed_intf = None
             try:
                 usb.util.claim_interface(self.device, self.intf_number)
-                self._claimed_intf: int | None = self.intf_number
+                self._claimed_intf = self.intf_number
                 logger.debug(f"Claimed interface {self.intf_number}")
             except usb.USBError as e:
                 logger.debug(f"claim_interface({self.intf_number}) failed: {e}")
                 self._claimed_intf = None
 
-            self._apply_windows_quirks()
+            self._open_cdc_line()
 
         else:
             self._claimed_intf = None
 
-    def _apply_windows_quirks(self) -> None:
-        """Applies Windows-specific USB and CDC serial quirks.
-
-        Windows requires explicitly forcing altsetting 0, clearing endpoint
-        halts, and artificially asserting the DTR/RTS CDC control lines
-        so the host USB stack properly acknowledges the connection.
-        """
-        if sys.platform != "win32" or self.device is None:
+    def _open_cdc_line(self) -> None:
+        """Send CDC line coding and control state to open the virtual serial port."""
+        if sys.platform == "linux" or self.device is None or self.intf_number is None:
+            logger.debug(
+                "Skipping CDC line open (not required on Linux, or missing device info)"
+            )
             return
-
-        try:
-            self.device.set_interface_altsetting(self.intf_number, 0)
-        except Exception as e:
-            logger.debug(f"set_interface_altsetting: {e}")
-
-        for ep in (self.ep_out, self.ep_in):
-            if ep:
-                try:
-                    self.device.clear_halt(ep.bEndpointAddress)
-                except Exception as e:
-                    logger.debug(f"clear_halt 0x{ep.bEndpointAddress:02x}: {e}")
 
         try:
             CDC_SET_LINE_CODING = 0x20
             CDC_SET_CONTROL_LINE_STATE = 0x22
             line_coding = struct.pack("<IBBB", 115200, 0, 0, 8)
             self.device.ctrl_transfer(
-                0x21, CDC_SET_LINE_CODING, 0, 0, line_coding, timeout=1000
+                0x21,
+                CDC_SET_LINE_CODING,
+                0,
+                self.intf_number,
+                line_coding,
+                timeout=1000,
             )
             logger.debug("CDC SET_LINE_CODING sent")
             self.device.ctrl_transfer(
-                0x21, CDC_SET_CONTROL_LINE_STATE, 0x0003, 0, b"", timeout=1000
+                0x21,
+                CDC_SET_CONTROL_LINE_STATE,
+                0x0003,
+                self.intf_number,
+                b"",
+                timeout=1000,
             )
             logger.debug("CDC SET_CONTROL_LINE_STATE sent (DTR=1 RTS=1)")
         except Exception as e:
