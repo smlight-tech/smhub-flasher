@@ -9,3 +9,4 @@ smhub_flasher/_version.py
 dev/
 .claude/
 windows_gui/dist/
+gui/vendor/
