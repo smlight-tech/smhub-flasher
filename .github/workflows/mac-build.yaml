@@ -70,11 +70,12 @@ jobs:
             --windowed \
             --icon "$repoRoot/png/icon.png" \
             --add-data "web:web" \
-            --add-data "vendor/fastboot:." \
+            --add-data "vendor/fastboot:smhub_flasher" \
             --add-data "$flasherPkg:smhub_flasher" \
             --hidden-import "usb.backend.libusb1" \
             --hidden-import "fastcrc" \
             --hidden-import "packaging.version" \
+            --hidden-import "tqdm" \
             --collect-all "webview" \
             --collect-all "libusb_package" \
             --collect-all "rich" \

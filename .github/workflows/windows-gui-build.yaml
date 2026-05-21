@@ -103,13 +103,14 @@ jobs:
             --icon "$repoRoot\png\icon.png" `
             --add-data "web;web" `
             --add-data "vendor\smhub-simple.exe;vendor" `
-            --add-data "vendor\fastboot.exe;." `
-            --add-data "vendor\AdbWinApi.dll;." `
-            --add-data "vendor\AdbWinUsbApi.dll;." `
+            --add-data "vendor\fastboot.exe;smhub_flasher" `
+            --add-data "vendor\AdbWinApi.dll;smhub_flasher" `
+            --add-data "vendor\AdbWinUsbApi.dll;smhub_flasher" `
             --add-data "$flasherPkg;smhub_flasher" `
             --hidden-import "usb.backend.libusb1" `
             --hidden-import "fastcrc" `
             --hidden-import "packaging.version" `
+            --hidden-import "tqdm" `
             --collect-all "webview" `
             --collect-all "libusb_package" `
             --collect-all "rich" `
