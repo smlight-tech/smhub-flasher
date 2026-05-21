@@ -126,7 +126,6 @@ class FlasherFSM:
                 return
 
     async def _wait_for_usb_device(self, *ids: tuple[int, int]) -> tuple[int, int]:
-        logger.debug(f"Waiting for USB device {[f'{v:04x}:{p:04x}' for v, p in ids]}")
         while True:
             action, e_vid, e_pid, _ = await self.monitor.wait_for_device(
                 actions=("add",)
@@ -158,7 +157,9 @@ class FlasherFSM:
         for attempt in range(3):
             try:
                 magic_size = os.path.getsize(self.magic_path)
-                logger.debug(f"Sending magic.bin (attempt {attempt + 1})")
+                logger.debug(
+                    f"Sending magic.bin (attempt {attempt + 1}) on {sys.platform}"
+                )
                 await self.transport.send_file_chunked(
                     self.magic_path,
                     DUMMY_ADDR,
@@ -169,20 +170,20 @@ class FlasherFSM:
                 if attempt == 0:
                     # On the first handshake attempt, the BootROM usually resets its USB PHY
                     # and physically drops off the bus.
-                    logger.debug(
-                        "First magic sent, skipping FIP to wait for expected re-enumeration"
-                    )
                     self.transport.close()
 
                     try:
                         vid, pid = await asyncio.wait_for(
                             self._wait_for_usb_device(ROM_IDS), timeout=5.0
                         )
+                        logger.debug(
+                            f"BootROM re-enumerated after first magic: {vid:04x}:{pid:04x}"
+                        )
                         self.transport = UsbTransport(vid, pid)
                         await self.transport.connect()
+                        continue
                     except TimeoutError:
-                        logger.debug("Re-enumeration timed out")
-                    continue
+                        break
 
                 logger.debug("Sending initial FIP chunk")
                 await self.transport.send_file_chunked(
@@ -208,7 +209,9 @@ class FlasherFSM:
                 return  # Success
 
             except Exception as e:
-                logger.debug(f"Handshake attempt {attempt + 1} failed: {e}")
+                logger.debug(
+                    f"Handshake attempt {attempt + 1} failed on {sys.platform}: {type(e).__name__}: {e}"
+                )
                 self.transport.close()
 
                 if attempt < 2:
@@ -286,7 +289,7 @@ class FlasherFSM:
                     logging.DEBUG
                 ):
                     pct = int(100 * done / total_size)
-                    logger.info(f"  ·  U-Boot FIP: {done}/{total_size} bytes ({pct}%)")
+                    logger.debug(f"  ·  U-Boot FIP: {done}/{total_size} bytes ({pct}%)")
 
                     if events.JSON_FD_OBJ is not None:
 
@@ -372,7 +375,9 @@ class FlasherFSM:
         if sys.platform == "win32":
             await asyncio.sleep(1.0)
 
-        self._resolve_fastboot_bin()
+        if not self._resolve_fastboot_bin():
+            self.state = "DONE"
+            return
 
         popen_kwargs: dict[str, Any] = {
             "stdout": asyncio.subprocess.PIPE,
@@ -564,20 +569,21 @@ class FlasherFSM:
             self.state = "DONE"
 
     def _resolve_fastboot_bin(self) -> bool:
-        """Locate the fastboot binary; stores result in self._fastboot_bin. Returns False if not found."""
+        """Locate fastboot in current bundled resource layout or PATH."""
         import shutil
 
         exe_name = "fastboot.exe" if sys.platform == "win32" else "fastboot"
         bundled = _resource_path(exe_name)
-
         if os.path.exists(bundled):
             self._fastboot_bin = bundled
-        elif shutil.which(exe_name):
+            return True
+
+        if shutil.which(exe_name):
             self._fastboot_bin = exe_name
-        else:
-            _err(f"Could not find {exe_name} in bundle or PATH.")
-            return False
-        return True
+            return True
+
+        _err(f"Could not find {exe_name} in bundle or PATH.")
+        return False
 
     async def _run_fastboot(
         self, args: list[str], description: str, total_size: int = 0, title: str = ""
@@ -635,17 +641,11 @@ class FlasherFSM:
             out_str = line_bytes.decode("utf-8", errors="replace").strip()
             if out_str:
                 error_log.append(out_str)
+                logger.info(f"      [fastboot] {out_str}")
                 match = send_re.search(out_str)
                 if pbar and match:
                     pbar.update(int(match.group(1)) * 1024)
                     events.emit_tqdm_progress(pbar, title)
-                if events.JSON_FD_OBJ is not None:
-                    logger.debug(f"      [dim]{out_str}[/dim]")
-                elif logger.getEffectiveLevel() <= logging.DEBUG:
-                    if pbar:
-                        pbar.write(f"      {out_str}")
-                    else:
-                        logger.debug(f"      [dim]{out_str}[/dim]")
 
         await process.wait()
 
