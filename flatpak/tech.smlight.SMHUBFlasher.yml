@@ -31,7 +31,7 @@ modules:
       - install -D -m644 png/icon.png /app/share/icons/hicolor/256x256/apps/tech.smlight.SMHUBFlasher.png
       - install -D -m644 png/icon@2x.png /app/share/icons/hicolor/512x512/apps/tech.smlight.SMHUBFlasher.png
       # Install Python dependencies
-      - pip3 install --prefix=/app --ignore-installed pywebview pyusb fastcrc tqdm colorama packaging rich pyudev PyGObject certifi libusb-package
+      - pip3 install --prefix=/app --ignore-installed pywebview pyusb fastcrc tqdm colorama packaging rich pyudev PyGObject libusb-package
       # Install CLI package
       - SETUPTOOLS_SCM_PRETEND_VERSION=0.9.3 pip3 install --prefix=/app --ignore-installed .
       # Install GUI files
