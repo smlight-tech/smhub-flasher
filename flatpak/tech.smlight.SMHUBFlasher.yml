@@ -51,7 +51,5 @@ modules:
         path: tech.smlight.SMHUBFlasher.metainfo.xml
       - type: dir
         path: .
-      - type: script
-        dest-filename: run.sh
-        commands:
-          - exec python3 /app/share/smhub-flasher-gui/app.py
+      - type: file
+        path: run.sh
