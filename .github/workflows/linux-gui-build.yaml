@@ -11,12 +11,16 @@ on:
     paths:
       - 'gui/**'
       - 'smhub_flasher/**'
+      - 'flatpak/**'
+      - '.github/workflows/linux-gui-build.yaml'
   push:
     branches:
       - main
     paths:
       - 'gui/**'
       - 'smhub_flasher/**'
+      - 'flatpak/**'
+      - '.github/workflows/linux-gui-build.yaml'
   workflow_dispatch:
 
 permissions:
