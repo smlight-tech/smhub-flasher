@@ -9,13 +9,11 @@ command: smhub-flasher-gui
 finish-args:
   - --share=network
   - --share=ipc
-  - --socket=x11
+  - --socket=wayland
   - --socket=fallback-x11
   - --device=all
   - --device=dri
   - --filesystem=host
-  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
-  - --env=GDK_BACKEND=x11
 
 build-options:
   build-args:
