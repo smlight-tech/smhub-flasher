@@ -12,6 +12,19 @@ const screens = {
 let currentMode = "online";
 let currentManifest = null;
 
+function applyDriverScreenForPlatform(platform) {
+  const isLinux = platform === "linux";
+  $("driver-desc").classList.toggle("hidden", isLinux);
+  $("driver-linux-instructions").classList.toggle("hidden", !isLinux);
+  if (isLinux) {
+    $("driver-title").textContent = "USB permission setup required";
+    $("btn-install-driver").textContent = "Refresh";
+    $("btn-install-driver").classList.remove("primary");
+  } else {
+    $("driver-title").textContent = "One-time USB driver setup";
+  }
+}
+
 function show(screen) {
   Object.values(screens).forEach((s) => s.classList.add("hidden"));
   screens[screen].classList.remove("hidden");
@@ -390,6 +403,7 @@ window.onFlasherEvent = function (evt) {
       $("btn-cancel").disabled = true;
       stopTimer();
       resetEta();
+      applyDriverScreenForPlatform(evt.platform);
       $("driver-status-1").textContent = "Needs setup";
       $("driver-status-1").className = "driver-status err";
       $("btn-driver-continue").disabled = false;
@@ -538,14 +552,13 @@ function showReleaseInfo() {
 async function refreshDriverStatus() {
   try {
     const dr = await window.pywebview.api.check_driver();
+    applyDriverScreenForPlatform(dr.platform);
     if (dr.platform === "linux") {
       // On Linux we never block at startup — udev errors are caught inline
       // during flashing (usb_permission_denied event). The Refresh button here
       // just lets the user confirm they've run the udev commands.
       $("driver-status-1").textContent = "Installed";
       $("driver-status-1").className = "driver-status ok";
-      $("btn-install-driver").textContent = "Refresh";
-      $("btn-install-driver").classList.remove("primary");
       $("btn-driver-continue").disabled = false;
     } else {
       const s1 = $("driver-status-1");

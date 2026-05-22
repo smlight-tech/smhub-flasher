@@ -451,7 +451,7 @@ def main() -> None:
         try:
             from . import events
 
-            events.emit(type="usb_permission_denied")
+            events.emit(type="usb_permission_denied", platform=sys.platform)
         except Exception:
             pass
         console.print("\n[red]  ✗  USB Access Denied[/red]\n")

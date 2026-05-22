@@ -51,11 +51,7 @@ class UsbTransport:
 
     @staticmethod
     def probe_access(vid: int, pid: int) -> None:
-        """Try to read the device descriptor; raise UsbPermissionError on EACCES.
-
-        Safe to call before handing off to an external tool (e.g. fastboot) — reads
-        only the already-enumerated configuration descriptor, never claims an interface.
-        """
+        """Try to read the device descriptor; raise UsbPermissionError on EACCES."""
         dev = usb.core.find(idVendor=vid, idProduct=pid)
         if dev is None:
             return
