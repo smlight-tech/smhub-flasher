@@ -28,6 +28,7 @@ cp -a . /tmp/smhub-flatpak-build/
 
 # Move flatpak specific files to the root of the build environment
 mv /tmp/smhub-flatpak-build/flatpak/tech.smlight.SMHUBFlasher.* /tmp/smhub-flatpak-build/
+mv /tmp/smhub-flatpak-build/flatpak/run.sh /tmp/smhub-flatpak-build/
 
 cd /tmp/smhub-flatpak-build
 

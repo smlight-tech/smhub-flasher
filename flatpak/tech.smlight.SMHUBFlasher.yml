@@ -9,13 +9,11 @@ command: smhub-flasher-gui
 finish-args:
   - --share=network
   - --share=ipc
-  - --socket=x11
+  - --socket=wayland
   - --socket=fallback-x11
   - --device=all
   - --device=dri
   - --filesystem=host
-  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
-  - --env=GDK_BACKEND=x11
 
 build-options:
   build-args:
@@ -32,11 +30,9 @@ modules:
       - install -D -m644 tech.smlight.SMHUBFlasher.metainfo.xml /app/share/metainfo/tech.smlight.SMHUBFlasher.metainfo.xml
       - install -D -m644 png/icon.png /app/share/icons/hicolor/256x256/apps/tech.smlight.SMHUBFlasher.png
       - install -D -m644 png/icon@2x.png /app/share/icons/hicolor/512x512/apps/tech.smlight.SMHUBFlasher.png
-      # Install Python dependencies
-      - pip3 install --prefix=/app --ignore-installed pywebview pyusb fastcrc tqdm colorama packaging rich pyudev PyGObject certifi libusb-package
-      # Install CLI package
+      # Install CLI and GUI package and dependencies
       - SETUPTOOLS_SCM_PRETEND_VERSION=0.9.3 pip3 install --prefix=/app --ignore-installed .
-      # Install GUI files
+      - pip3 install --prefix=/app --ignore-installed pywebview PyGObject
       - mkdir -p /app/share/smhub-flasher-gui
       - cp gui/app.py gui/flasher_runner.py gui/driver_check.py /app/share/smhub-flasher-gui/
       - cp -r gui/web /app/share/smhub-flasher-gui/web
@@ -53,7 +49,5 @@ modules:
         path: tech.smlight.SMHUBFlasher.metainfo.xml
       - type: dir
         path: .
-      - type: script
-        dest-filename: run.sh
-        commands:
-          - exec python3 /app/share/smhub-flasher-gui/app.py
+      - type: file
+        path: run.sh
