@@ -562,6 +562,26 @@ async function refreshDriverStatus() {
   }
 }
 
+async function copyToClipboard(text, btn) {
+  const original = btn.textContent;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    btn.textContent = "Copied!";
+  } catch {
+    btn.textContent = "Failed";
+  }
+  setTimeout(() => { btn.textContent = original; }, 1200);
+}
+
 async function runInstaller(buttonId, apiCall) {
   const btn = $(buttonId);
   const orig = btn.textContent;
@@ -737,28 +757,10 @@ async function init() {
 
   const stopPropagation = (e) => e.stopPropagation();
 
-  $("btn-copy-log").addEventListener("click", async (e) => {
+  $("btn-copy-log").addEventListener("click", (e) => {
     stopPropagation(e);
     e.preventDefault();
-    const text = $("log").textContent;
-    const btn = $("btn-copy-log");
-    const original = btn.textContent;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      btn.textContent = "Copied!";
-    } catch (err) {
-      btn.textContent = "Failed";
-    }
-    setTimeout(() => { btn.textContent = original; }, 1200);
+    copyToClipboard($("log").textContent, $("btn-copy-log"));
   });
 
   $("btn-clear-log").addEventListener("click", (e) => {
@@ -767,28 +769,10 @@ async function init() {
     $("log").textContent = "";
   });
 
-  $("btn-copy-udev").addEventListener("click", async (e) => {
+  $("btn-copy-udev").addEventListener("click", (e) => {
     stopPropagation(e);
     e.preventDefault();
-    const text = $("driver-linux-code").textContent;
-    const btn = $("btn-copy-udev");
-    const original = btn.textContent;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      btn.textContent = "Copied!";
-    } catch (err) {
-      btn.textContent = "Failed";
-    }
-    setTimeout(() => { btn.textContent = original; }, 1200);
+    copyToClipboard($("driver-linux-code").textContent, $("btn-copy-udev"));
   });
 
   switchMode("online");
