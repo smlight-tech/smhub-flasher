@@ -724,14 +724,8 @@ async function init() {
     $("btn-start").disabled = true;
     $("btn-cancel").disabled = false;
     setStatus("Running", "running");
-    // Show the plug-in prompt immediately. The first phase event from
-    // the runner ("BootROM Detection") will overwrite this with the
-    // same message, but online mode runs Download/Verify/Extract first,
-    // so we want the user to know to plug the device right away.
+    // Light up the step-1 indicator immediately so the UI feels responsive.
     setPhase("BootROM Detection");
-    $("progress-text").innerHTML =
-      "➜ <b>Plug in the SMHUB device now</b> " +
-      "(or unplug &amp; replug if already connected)";
     let res;
     if (currentMode === "online") {
       const channel = $("online-channel").value;
