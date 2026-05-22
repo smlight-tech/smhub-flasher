@@ -30,11 +30,9 @@ modules:
       - install -D -m644 tech.smlight.SMHUBFlasher.metainfo.xml /app/share/metainfo/tech.smlight.SMHUBFlasher.metainfo.xml
       - install -D -m644 png/icon.png /app/share/icons/hicolor/256x256/apps/tech.smlight.SMHUBFlasher.png
       - install -D -m644 png/icon@2x.png /app/share/icons/hicolor/512x512/apps/tech.smlight.SMHUBFlasher.png
-      # Install Python dependencies
-      - pip3 install --prefix=/app --ignore-installed pywebview pyusb fastcrc tqdm colorama packaging rich pyudev PyGObject libusb-package
-      # Install CLI package
+      # Install CLI and GUI package and dependencies
       - SETUPTOOLS_SCM_PRETEND_VERSION=0.9.3 pip3 install --prefix=/app --ignore-installed .
-      # Install GUI files
+      - pip3 install --prefix=/app --ignore-installed pywebview PyGObject
       - mkdir -p /app/share/smhub-flasher-gui
       - cp gui/app.py gui/flasher_runner.py gui/driver_check.py /app/share/smhub-flasher-gui/
       - cp -r gui/web /app/share/smhub-flasher-gui/web
