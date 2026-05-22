@@ -384,6 +384,17 @@ window.onFlasherEvent = function (evt) {
     case "error":
       if (evt.message) appendLog("[ERROR] " + evt.message);
       break;
+    case "usb_permission_denied":
+      setStatus("Failed", "error");
+      $("btn-start").disabled = false;
+      $("btn-cancel").disabled = true;
+      stopTimer();
+      resetEta();
+      $("driver-status-1").textContent = "Needs setup";
+      $("driver-status-1").className = "driver-status err";
+      $("btn-driver-continue").disabled = false;
+      show("driver");
+      break;
   }
 };
 
@@ -527,31 +538,27 @@ function showReleaseInfo() {
 async function refreshDriverStatus() {
   try {
     const dr = await window.pywebview.api.check_driver();
-    const s1 = $("driver-status-1");
-    s1.textContent = dr.winusb_bound ? "Installed" : "Needs setup";
-    s1.className = "driver-status " + (dr.winusb_bound ? "ok" : "err");
     if (dr.platform === "linux") {
-      $("driver-title").textContent = "Linux USB Permissions";
-      $("driver-desc").innerHTML = "To flash firmware over USB, Linux requires proper hardware permissions. Open your <b>host terminal</b> and run the command below to install the necessary <code>udev</code> rules. Once installed, reconnect your device and click <b>Refresh</b>.";
-      $("driver-name").textContent = "SMHUB udev rules";
-      $("driver-linux-instructions").classList.remove("hidden");
-    }
-
-    if (dr.winusb_bound) {
-      if (dr.platform === "linux") {
-        $("btn-install-driver").textContent = "Refresh";
-      } else {
-        $("btn-install-driver").textContent = "Reinstall";
-      }
-      $("btn-install-driver").classList.remove("primary");
-    } else if (dr.platform === "linux") {
+      // On Linux we never block at startup — udev errors are caught inline
+      // during flashing (usb_permission_denied event). The Refresh button here
+      // just lets the user confirm they've run the udev commands.
+      $("driver-status-1").textContent = "Installed";
+      $("driver-status-1").className = "driver-status ok";
       $("btn-install-driver").textContent = "Refresh";
+      $("btn-install-driver").classList.remove("primary");
+      $("btn-driver-continue").disabled = false;
+    } else {
+      const s1 = $("driver-status-1");
+      s1.textContent = dr.winusb_bound ? "Installed" : "Needs setup";
+      s1.className = "driver-status " + (dr.winusb_bound ? "ok" : "err");
+      $("btn-install-driver").textContent = dr.winusb_bound ? "Reinstall" : "Install";
+      if (dr.winusb_bound) $("btn-install-driver").classList.remove("primary");
+      $("btn-driver-continue").disabled = !dr.winusb_bound;
     }
-    $("btn-driver-continue").disabled = !dr.winusb_bound;
     return dr;
   } catch (e) {
     appendLog("Driver check error: " + e);
-    return { winusb_bound: false };
+    return {};
   }
 }
 
@@ -581,11 +588,11 @@ async function init() {
   try {
     dr = await window.pywebview.api.check_driver();
   } catch (e) {
-    dr = { winusb_bound: false };
+    dr = {};
     appendLog("Driver check error: " + e);
   }
-  // Show the driver screen only if the SMHUB bootloader driver is missing.
-  if (!dr.winusb_bound) {
+  // Show the driver screen only on Windows when the WinUSB driver is missing.
+  if (dr.platform === "win32" && !dr.winusb_bound) {
     show("driver");
     refreshDriverStatus();
   } else {

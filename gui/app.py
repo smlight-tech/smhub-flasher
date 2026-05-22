@@ -178,8 +178,10 @@ class Api:
     # ---- Driver flow -------------------------------------------------------
 
     def check_driver(self) -> dict:
-        bound = usb_driver_check(TARGET_VIDS, TARGET_PIDS)
-        return {"winusb_bound": bound, "fastboot_bound": True, "platform": sys.platform}
+        if sys.platform == "win32":
+            bound = usb_driver_check(TARGET_VIDS, TARGET_PIDS)
+            return {"winusb_bound": bound, "platform": sys.platform}
+        return {"platform": sys.platform}
 
     def install_driver(self) -> dict:
         try:
