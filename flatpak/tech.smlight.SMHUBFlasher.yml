@@ -32,6 +32,19 @@ modules:
         sha256: 2a09cfd9b77b61f112409e1b35a1b315bcd5d396e7abdad79c169601a5a66b77
         dest-filename: fastboot-linux-x86_64
 
+  - name: lrzsz
+    buildsystem: autotools
+    build-options:
+      cflags: "-std=gnu89 -Wno-implicit-function-declaration -Wno-int-conversion -Wno-implicit-int -Wno-incompatible-pointer-types"
+    post-install:
+      - ln -sf lrz /app/bin/rz
+      - ln -sf lsz /app/bin/sz
+      - rm -f /app/bin/lrx /app/bin/lrb /app/bin/lsx /app/bin/lsb
+    sources:
+      - type: archive
+        url: https://ohse.de/uwe/releases/lrzsz-0.12.20.tar.gz
+        sha256: c28b36b14bddb014d9e9c97c52459852f97bd405f89113f30bee45ed92728ff1
+
   - name: smhub-flasher-gui
     buildsystem: simple
     build-commands:
@@ -42,9 +55,9 @@ modules:
       - install -D -m644 png/icon@2x.png /app/share/icons/hicolor/512x512/apps/tech.smlight.SMHUBFlasher.png
       # Install CLI and GUI package and dependencies
       - SETUPTOOLS_SCM_PRETEND_VERSION=0.9.3 pip3 install --prefix=/app --ignore-installed .
-      - pip3 install --prefix=/app --ignore-installed pywebview PyGObject
+      - pip3 install --prefix=/app --ignore-installed pywebview PyGObject pyserial
       - mkdir -p /app/share/smhub-flasher-gui
-      - cp gui/app.py gui/flasher_runner.py gui/driver_check.py /app/share/smhub-flasher-gui/
+      - cp gui/app.py gui/flasher_runner.py gui/driver_check.py gui/console.py /app/share/smhub-flasher-gui/
       - cp -r gui/web /app/share/smhub-flasher-gui/web
       # Install launcher
       - install -D -m755 run.sh /app/bin/smhub-flasher-gui
