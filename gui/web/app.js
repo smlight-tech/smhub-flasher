@@ -299,12 +299,12 @@ window.onFlasherEvent = function (evt) {
       }
       break;
     case "download_progress":
-      $("progress-bar").style.width = evt.percent + "%";
+      $("progress-bar").style.transform = `scaleX(${evt.percent / 100})`;
       $("progress-text").textContent =
         `Downloading: ${humanBytes(evt.downloaded)} / ${humanBytes(evt.total)} (${evt.percent}%)`;
       break;
     case "extract_progress":
-      $("progress-bar").style.width = evt.percent + "%";
+      $("progress-bar").style.transform = `scaleX(${evt.percent / 100})`;
       $("progress-text").textContent =
         evt.file ? `Extracting ${evt.file}… (${evt.percent}%)` : `Extracting complete`;
       break;
