@@ -89,6 +89,15 @@ jobs:
           Remove-Item "vendor\platform-tools.zip"
           Write-Host "fastboot.exe downloaded: $((Get-Item 'vendor\fastboot.exe').Length) bytes"
 
+      - name: Extract lrzsz (ZMODEM) binaries
+        shell: pwsh
+        run: |
+          Expand-Archive -Path "vendor\lrzsz_0.12.21rc_windows_x86_64.zip" -DestinationPath "vendor\_lrzsz"
+          # Extract rz.exe and sz.exe regardless of intermediate folder structure
+          Get-ChildItem -Path "vendor\_lrzsz" -Recurse -Filter "*.exe" | Copy-Item -Destination "vendor\" -Force
+          Remove-Item -Recurse -Force "vendor\_lrzsz"
+          Write-Host "ZMODEM binaries extracted: $((Get-Item 'vendor\sz.exe').Length) bytes"
+
       - name: Build with PyInstaller
         shell: pwsh
         run: |
@@ -103,6 +112,8 @@ jobs:
             --icon "$repoRoot\png\icon.png" `
             --add-data "web;web" `
             --add-data "vendor\smhub-simple.exe;vendor" `
+            --add-data "vendor\rz.exe;vendor" `
+            --add-data "vendor\sz.exe;vendor" `
             --add-data "vendor\fastboot.exe;smhub_flasher" `
             --add-data "vendor\AdbWinApi.dll;smhub_flasher" `
             --add-data "vendor\AdbWinUsbApi.dll;smhub_flasher" `
