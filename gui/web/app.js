@@ -338,6 +338,19 @@ function switchMode(mode) {
   });
   $("panel-online").classList.toggle("hidden", mode !== "online");
   $("panel-local").classList.toggle("hidden", mode !== "local");
+  $("panel-console").classList.toggle("hidden", mode !== "console");
+
+  if (mode === "console") {
+    initTerminal();
+    setTimeout(() => fitAddon.fit(), 0);
+  } else {
+    // Clean up resource contention if navigating away
+    const btn = $("btn-console-connect");
+    if (btn && btn.textContent === "Disconnect") {
+      btn.click(); // Auto-disconnect
+    }
+  }
+
   refreshStartButton();
 }
 
@@ -695,5 +708,94 @@ async function init() {
 
   switchMode("online");
 }
+
+// --- Recovery Console ---
+let terminal = null;
+let fitAddon = null;
+
+function initTerminal() {
+  if (terminal) return;
+  terminal = new window.Terminal({
+    cursorBlink: true,
+    theme: { background: '#000000' },
+    fontFamily: 'monospace',
+    fontSize: 14,
+  });
+  fitAddon = new window.FitAddon.FitAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.open($("terminal-container"));
+  fitAddon.fit();
+
+  terminal.onData((data) => {
+    if (window.pywebview && window.pywebview.api) {
+      window.pywebview.api.write_console(data);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (currentMode === "console") {
+      fitAddon.fit();
+    }
+  });
+
+  // Enable mouse copy/paste (Linux style)
+  terminal.onSelectionChange(() => {
+    if (terminal.hasSelection()) {
+      navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
+    }
+  });
+
+  terminal.element.addEventListener("contextmenu", async (e) => {
+    e.preventDefault();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        window.pywebview.api.write_console(text);
+      }
+    } catch (err) {
+      console.warn("Clipboard paste failed", err);
+    }
+  });
+}
+
+window.writeTerminalData = function(data) {
+  if (terminal) terminal.write(data);
+};
+
+window.setConsoleStatus = function(status, color) {
+  const el = $("console-status");
+  el.textContent = status;
+  el.style.color = color || "#aaa";
+};
+
+$("btn-console-connect").addEventListener("click", async () => {
+  const btn = $("btn-console-connect");
+  if (btn.textContent === "Connect") {
+    btn.disabled = true;
+    window.setConsoleStatus("Connecting...", "#aaa");
+    try {
+      const res = await window.pywebview.api.open_console();
+      btn.disabled = false;
+      if (res.ok) {
+        btn.textContent = "Disconnect";
+        window.setConsoleStatus("Connected", "#0f0");
+        if (terminal) terminal.focus();
+      } else {
+        window.setConsoleStatus("Failed: " + res.error, "#f00");
+      }
+    } catch (e) {
+      btn.disabled = false;
+      window.setConsoleStatus("Error: " + e, "#f00");
+    }
+  } else {
+    btn.disabled = true;
+    try {
+      await window.pywebview.api.close_console();
+    } catch (e) { /* ignore */ }
+    btn.disabled = false;
+    btn.textContent = "Connect";
+    window.setConsoleStatus("Disconnected", "#aaa");
+  }
+});
 
 window.addEventListener("pywebviewready", init);

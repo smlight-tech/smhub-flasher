@@ -103,6 +103,7 @@ from driver_check import (
 from flasher_runner import FlasherRunner
 
 import smhub_flasher.downloader as downloader
+from console import SerialConsole
 
 
 def resource_path(relative: str) -> str:
@@ -150,6 +151,7 @@ class Api:
         self._runner: FlasherRunner | None = None
         self._download_thread: threading.Thread | None = None
         self._downloader: downloader.FirmwareDownloader | None = None
+        self._console: SerialConsole | None = None
 
     def bind_window(self, window: webview.Window) -> None:
         self._window = window
@@ -360,6 +362,42 @@ class Api:
 
         return {"ok": cancelled_any}
 
+    # ---- Console -----------------------------------------------------------
+
+    def open_console(self) -> dict:
+        if self._console:
+            self._console.disconnect()
+
+        def on_data(text: str) -> None:
+            if self._window:
+                safe_str = _js_safe(text)
+                self._window.evaluate_js(f"window.writeTerminalData({safe_str})")
+
+        def on_disconnect(reason: str) -> None:
+            if self._window:
+                self._window.evaluate_js(f"window.setConsoleStatus('Disconnected: {reason}', '#f00')")
+                # Auto-change button state back to Connect
+                self._window.evaluate_js("document.getElementById('btn-console-connect').textContent = 'Connect';")
+
+        try:
+            self._console = SerialConsole(on_data, on_disconnect)
+            self._console.connect()
+            return {"ok": True}
+        except Exception as e:
+            self._console = None
+            return {"ok": False, "error": str(e)}
+
+    def close_console(self) -> dict:
+        if self._console:
+            self._console.disconnect()
+            self._console = None
+        return {"ok": True}
+
+    def write_console(self, data: str) -> dict:
+        if self._console:
+            self._console.write(data)
+        return {"ok": True}
+
 
 def _js_safe(obj: dict) -> str:
     import json
@@ -436,6 +474,11 @@ def main() -> None:
             if api._downloader:
                 api._downloader.cancel()
                 api._downloader.cleanup()
+        except Exception:
+            pass
+        try:
+            if api._console:
+                api._console.disconnect()
         except Exception:
             pass
 

@@ -8,6 +8,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SMHUB Flasher</title>
+  <link rel="stylesheet" href="xterm.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -48,6 +49,7 @@ sudo udevadm trigger</pre>
       <div class="tabs">
         <button class="tab active" data-mode="online" type="button">Online firmware</button>
         <button class="tab" data-mode="local" type="button">Local folder</button>
+        <button class="tab" data-mode="console" type="button">Recovery Console</button>
       </div>
 
       <!-- Online mode panel -->
@@ -89,6 +91,15 @@ sudo udevadm trigger</pre>
             <button id="btn-pick-folder" type="button">Browse…</button>
           </div>
           <div id="folder-status" class="hint"></div>
+        </div>
+      </div>
+
+      <!-- Console panel -->
+      <div id="panel-console" class="panel hidden console-panel">
+        <div id="terminal-container" class="console-terminal"></div>
+        <div class="console-footer">
+          <span id="console-status" class="console-status">Disconnected</span>
+          <button id="btn-console-connect" type="button" class="console-btn">Connect</button>
         </div>
       </div>
 
@@ -148,7 +159,9 @@ sudo udevadm trigger</pre>
     <span>© 2026 SMLIGHT · GPLv3</span>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="marked.min.js"></script>
+  <script src="xterm.js"></script>
+  <script src="xterm-addon-fit.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
