@@ -15,6 +15,7 @@ from rich.logging import RichHandler
 from rich.markdown import Markdown
 
 from . import downloader
+from .exceptions import UsbPermissionError
 from .flasher_fsm import FlasherFSM
 from .monitor import UsbMonitor
 
@@ -387,19 +388,6 @@ async def async_main() -> None:
         dl.cleanup()
 
 
-def check_usb_permissions() -> bool:
-    """Check if the user has root access or is in typical USB permission groups."""
-    if not hasattr(os, "geteuid") or os.geteuid() == 0:
-        return True
-    try:
-        import grp
-
-        groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
-        return any(g in groups for g in ["dialout", "plugdev", "uucp"])
-    except Exception:
-        return False
-
-
 def get_bundled_libusb_backend() -> Any:
     """Get PyUSB libusb1 backend with PyInstaller _MEIPASS support for macOS."""
     if sys.platform == "linux":
@@ -439,10 +427,6 @@ def get_bundled_libusb_backend() -> Any:
 
 
 def main() -> None:
-    if not check_usb_permissions():
-        logger.warning(
-            "Flasher not running as root and dialout/plugdev group missing. You may have pyudev/pyusb permissions issues!"
-        )
     try:
         import usb.core
 
@@ -463,19 +447,40 @@ def main() -> None:
     except KeyboardInterrupt:
         console.print("\n[yellow]  ⚠  Flasher Cancelled by User[/yellow]\n")
         sys.exit(130)
-    except usb.core.USBError as e:
-        if "Access denied" in str(e) or getattr(e, "errno", None) == 13:
-            console.print("\n[red]  ✗  USB Access Denied (Permission Error)[/red]")
+    except UsbPermissionError:
+        try:
+            from . import events
+
+            events.emit(type="usb_permission_denied", platform=sys.platform)
+        except Exception:
+            pass
+        console.print("\n[red]  ✗  USB Access Denied[/red]\n")
+        if sys.platform == "linux":
             console.print(
-                "[yellow]Please ensure you have correctly installed the required udev rules for the platform![/yellow]"
+                "[yellow]Run the following in a terminal to fix this:[/yellow]\n"
             )
             console.print(
-                "[white]See Documentation: [cyan]https://github.com/smlight-dev/smhub-flasher[/cyan]\n"
+                "[white]  cat << 'EOF' | sudo tee /etc/udev/rules.d/99-smhub-flasher.rules\n"
+                '  SUBSYSTEM=="usb", ATTR{idVendor}=="3346", ATTR{idProduct}=="1000", MODE="0666"\n'
+                '  SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="4ee0", MODE="0666"\n'
+                "  EOF\n"
+                "  sudo udevadm control --reload-rules\n"
+                "  sudo udevadm trigger[/white]\n"
             )
-            sys.exit(1)
+            console.print("[yellow]Then reconnect the device and retry.[/yellow]\n")
+        elif sys.platform == "darwin":
+            console.print(
+                "[yellow]macOS blocked access to the USB device.\n"
+                "Try running with [white]sudo[/white], or check System Settings → Privacy & Security.[/yellow]\n"
+            )
         else:
-            console.print(f"\n[red]  ✗  FATAL USB Error: {e}[/red]\n")
-            sys.exit(1)
+            console.print(
+                "[yellow]The OS denied access to the USB device. Try running as Administrator.[/yellow]\n"
+            )
+        sys.exit(1)
+    except usb.core.USBError as e:
+        console.print(f"\n[red]  ✗  FATAL USB Error: {e}[/red]\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

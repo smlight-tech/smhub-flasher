@@ -12,6 +12,19 @@ const screens = {
 let currentMode = "online";
 let currentManifest = null;
 
+function applyDriverScreenForPlatform(platform) {
+  const isLinux = platform === "linux";
+  $("driver-desc").classList.toggle("hidden", isLinux);
+  $("driver-linux-instructions").classList.toggle("hidden", !isLinux);
+  if (isLinux) {
+    $("driver-title").textContent = "USB permission setup required";
+    $("btn-install-driver").textContent = "Refresh";
+    $("btn-install-driver").classList.remove("primary");
+  } else {
+    $("driver-title").textContent = "One-time USB driver setup";
+  }
+}
+
 function show(screen) {
   Object.values(screens).forEach((s) => s.classList.add("hidden"));
   screens[screen].classList.remove("hidden");
@@ -384,6 +397,18 @@ window.onFlasherEvent = function (evt) {
     case "error":
       if (evt.message) appendLog("[ERROR] " + evt.message);
       break;
+    case "usb_permission_denied":
+      setStatus("Failed", "error");
+      $("btn-start").disabled = false;
+      $("btn-cancel").disabled = true;
+      stopTimer();
+      resetEta();
+      applyDriverScreenForPlatform(evt.platform);
+      $("driver-status-1").textContent = "Needs setup";
+      $("driver-status-1").className = "driver-status err";
+      $("btn-driver-continue").disabled = false;
+      show("driver");
+      break;
   }
 };
 
@@ -527,32 +552,44 @@ function showReleaseInfo() {
 async function refreshDriverStatus() {
   try {
     const dr = await window.pywebview.api.check_driver();
-    const s1 = $("driver-status-1");
-    s1.textContent = dr.winusb_bound ? "Installed" : "Needs setup";
-    s1.className = "driver-status " + (dr.winusb_bound ? "ok" : "err");
+    applyDriverScreenForPlatform(dr.platform);
     if (dr.platform === "linux") {
-      $("driver-title").textContent = "Linux USB Permissions";
-      $("driver-desc").innerHTML = "To flash firmware over USB, Linux requires proper hardware permissions. Open your <b>host terminal</b> and run the command below to install the necessary <code>udev</code> rules. Once installed, reconnect your device and click <b>Refresh</b>.";
-      $("driver-name").textContent = "SMHUB udev rules";
-      $("driver-linux-instructions").classList.remove("hidden");
+      $("driver-status-1").textContent = "Installed";
+      $("driver-status-1").className = "driver-status ok";
+      $("btn-driver-continue").disabled = false;
+    } else {
+      const s1 = $("driver-status-1");
+      s1.textContent = dr.winusb_bound ? "Installed" : "Needs setup";
+      s1.className = "driver-status " + (dr.winusb_bound ? "ok" : "err");
+      $("btn-install-driver").textContent = dr.winusb_bound ? "Reinstall" : "Install";
+      if (dr.winusb_bound) $("btn-install-driver").classList.remove("primary");
+      $("btn-driver-continue").disabled = !dr.winusb_bound;
     }
-
-    if (dr.winusb_bound) {
-      if (dr.platform === "linux") {
-        $("btn-install-driver").textContent = "Refresh";
-      } else {
-        $("btn-install-driver").textContent = "Reinstall";
-      }
-      $("btn-install-driver").classList.remove("primary");
-    } else if (dr.platform === "linux") {
-      $("btn-install-driver").textContent = "Refresh";
-    }
-    $("btn-driver-continue").disabled = !dr.winusb_bound;
     return dr;
   } catch (e) {
     appendLog("Driver check error: " + e);
-    return { winusb_bound: false };
+    return {};
   }
+}
+
+async function copyToClipboard(text, btn) {
+  const original = btn.textContent;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    btn.textContent = "Copied!";
+  } catch {
+    btn.textContent = "Failed";
+  }
+  setTimeout(() => { btn.textContent = original; }, 1200);
 }
 
 async function runInstaller(buttonId, apiCall) {
@@ -581,11 +618,11 @@ async function init() {
   try {
     dr = await window.pywebview.api.check_driver();
   } catch (e) {
-    dr = { winusb_bound: false };
+    dr = {};
     appendLog("Driver check error: " + e);
   }
-  // Show the driver screen only if the SMHUB bootloader driver is missing.
-  if (!dr.winusb_bound) {
+  // Show the driver screen only on Windows when the WinUSB driver is missing.
+  if (dr.platform === "win32" && !dr.winusb_bound) {
     show("driver");
     refreshDriverStatus();
   } else {
@@ -730,28 +767,10 @@ async function init() {
 
   const stopPropagation = (e) => e.stopPropagation();
 
-  $("btn-copy-log").addEventListener("click", async (e) => {
+  $("btn-copy-log").addEventListener("click", (e) => {
     stopPropagation(e);
     e.preventDefault();
-    const text = $("log").textContent;
-    const btn = $("btn-copy-log");
-    const original = btn.textContent;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      btn.textContent = "Copied!";
-    } catch (err) {
-      btn.textContent = "Failed";
-    }
-    setTimeout(() => { btn.textContent = original; }, 1200);
+    copyToClipboard($("log").textContent, $("btn-copy-log"));
   });
 
   $("btn-clear-log").addEventListener("click", (e) => {
@@ -760,28 +779,10 @@ async function init() {
     $("log").textContent = "";
   });
 
-  $("btn-copy-udev").addEventListener("click", async (e) => {
+  $("btn-copy-udev").addEventListener("click", (e) => {
     stopPropagation(e);
     e.preventDefault();
-    const text = $("driver-linux-code").textContent;
-    const btn = $("btn-copy-udev");
-    const original = btn.textContent;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      btn.textContent = "Copied!";
-    } catch (err) {
-      btn.textContent = "Failed";
-    }
-    setTimeout(() => { btn.textContent = original; }, 1200);
+    copyToClipboard($("driver-linux-code").textContent, $("btn-copy-udev"));
   });
 
   switchMode("online");

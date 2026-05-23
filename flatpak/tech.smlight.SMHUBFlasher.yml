@@ -20,11 +20,21 @@ build-options:
     - --share=network
 
 modules:
+  - name: fastboot
+    buildsystem: simple
+    build-commands:
+      - install -D -m755 fastboot-linux-x86_64 /app/bin/fastboot
+    sources:
+      # Pre-built fastboot binary from tl-sl/android-tools CI
+      # Source: https://github.com/tl-sl/android-tools (Apache 2.0, built from nmeum/android-tools 35.0.2)
+      - type: file
+        url: https://github.com/tl-sl/android-tools/releases/download/35.0.2/fastboot-linux-x86_64
+        sha256: 2a09cfd9b77b61f112409e1b35a1b315bcd5d396e7abdad79c169601a5a66b77
+        dest-filename: fastboot-linux-x86_64
+
   - name: smhub-flasher-gui
     buildsystem: simple
     build-commands:
-      # Install fastboot
-      - install -D -m755 platform-tools/fastboot /app/bin/fastboot
       # Install Desktop & Metainfo files
       - install -D -m644 tech.smlight.SMHUBFlasher.desktop /app/share/applications/tech.smlight.SMHUBFlasher.desktop
       - install -D -m644 tech.smlight.SMHUBFlasher.metainfo.xml /app/share/metainfo/tech.smlight.SMHUBFlasher.metainfo.xml
@@ -39,10 +49,6 @@ modules:
       # Install launcher
       - install -D -m755 run.sh /app/bin/smhub-flasher-gui
     sources:
-      - type: archive
-        url: https://dl.google.com/android/repository/platform-tools_r35.0.1-linux.zip
-        sha256: 823d270be01444828ccd09e94209ff394fb8a8457243e1c15689fe0544acbc72
-        strip-components: 0
       - type: file
         path: tech.smlight.SMHUBFlasher.desktop
       - type: file

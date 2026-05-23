@@ -9,11 +9,27 @@
     <name>SMLIGHT</name>
   </developer>
   <description>
-    <p>SMHUB Flasher is the official desktop utility for recovering firmware on SMLIGHT SMHUB coordinator devices.</p>
-    <p>It automatically detects connected devices via USB, downloads the latest firmware catalog securely, and safely flashes the device back to a working state.</p>
+    <p>SMHUB Flasher is the official desktop utility for recovering firmware on
+    SMLIGHT SMHUB devices.</p>
+    <p>It automatically detects connected devices via USB, downloads the latest
+    firmware catalog securely, and safely flashes the device back to a working state.</p>
   </description>
   <launchable type="desktop-id">tech.smlight.SMHUBFlasher.desktop</launchable>
   <url type="homepage">https://smlight.tech/</url>
   <url type="bugtracker">https://github.com/smlight-tech/smhub-flasher/issues</url>
   <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.0.1" date="2026-05-21"/>
+    <release version="1.0.0" date="2026-05-19"/>
+  </releases>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/smlight-tech/smhub-flasher/main/png/screenshot-1.png</image>
+      <caption>Firmware selected and ready to download and flash</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/smlight-tech/smhub-flasher/main/png/screenshot-2.png</image>
+      <caption>Firmware flashing completed successfully</caption>
+    </screenshot>
+  </screenshots>
 </component>

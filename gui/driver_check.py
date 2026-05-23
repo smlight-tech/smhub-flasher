@@ -6,7 +6,6 @@ smhub-simple.exe (compiled from wdi-simple) to install it when not."""
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from typing import Iterable
 
@@ -61,28 +60,7 @@ def _iter_enum_usb_keys() -> Iterable[tuple[int, int, str]]:
 
 
 def usb_driver_check(vids: list[int], pids: list[int]) -> bool:
-    """Return True if the USB device has the required driver/permissions (WinUSB on Windows, udev rules on Linux)."""
-    if sys.platform == "linux":
-        paths_to_check = [
-            "/etc/udev/rules.d",
-            "/var/run/host/etc/udev/rules.d",
-            "/run/host/etc/udev/rules.d",
-        ]
-        for base in paths_to_check:
-            if not os.path.exists(base):
-                continue
-            for fname in os.listdir(base):
-                if not fname.endswith(".rules"):
-                    continue
-                try:
-                    with open(os.path.join(base, fname), "r") as f:
-                        content = f.read()
-                        if "3346" in content and "1000" in content:
-                            return True
-                except OSError:
-                    pass
-        return False
-
+    """Return True if the USB device has the required driver/permissions (WinUSB on Windows)."""
     if sys.platform != "win32":
         return True
     for vid, pid, service in _iter_enum_usb_keys():
@@ -104,10 +82,9 @@ def launch_driver_installer(
         )
 
     import tempfile
-    import subprocess
     ext_dir = os.path.join(tempfile.gettempdir(), "smhub_usb_driver")
     ps_script_path = os.path.join(tempfile.gettempdir(), "smhub_install.ps1")
-    
+
     ps_content = f"""$ErrorActionPreference = 'Stop'
 Start-Transcript -Path "$env:TEMP\\smhub_install.log"
 & "{installer_path}" -d "{ext_dir}"
@@ -191,8 +168,4 @@ if (-not $result) {{
         kernel32.CloseHandle(sei.hProcess)
         return int(rc.value)
 
-    if sys.platform == "linux":
-        return 0
-
-    # Non-Windows fallback for dev work
-    return subprocess.call(args)
+    return 0
