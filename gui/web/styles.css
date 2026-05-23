@@ -347,10 +347,12 @@ button:disabled {
   height: 100%;
   width: 0%;
   background: linear-gradient(90deg, var(--accent), var(--accent-hover));
-  /* Longer ease — smooths out fastboot.exe's bursty progress updates
-     (it emits ~10 percentages in milliseconds during a "Send" phase,
-     then nothing for 6 s during the "Write" phase). */
-  transition: width 1.5s ease-out;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+  /* Long ease smooths fastboot's burst writes: many % updates arrive in
+     milliseconds during "Sending", then nothing for ~1.4 s during "Writing". */
+  transition: transform 1.5s ease-out;
 }
 
 .progress-bar.success {

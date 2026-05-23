@@ -29,11 +29,45 @@ function show(screen) {
   screens[screen].classList.remove("hidden");
 }
 
-function setStatus(text, cls) {
-  const pill = $("status-pill");
-  pill.textContent = text;
-  pill.className = "pill " + cls;
-}
+// --- GUI state helpers ---
+const flashUI = {
+  setStatus(text, cls) {
+    const pill = $("status-pill");
+    pill.textContent = text;
+    pill.className = "pill " + cls;
+  },
+
+  setPhase(phaseName) {
+    const steps = document.querySelectorAll(".step");
+    let reached = false;
+    steps.forEach((el) => {
+      el.classList.remove("active", "done");
+      if (el.dataset.phase === phaseName) {
+        el.classList.add("active");
+        reached = true;
+      } else if (!reached) {
+        el.classList.add("done");
+      }
+    });
+  },
+
+  markAllStepsDone() {
+    document.querySelectorAll(".step").forEach((el) => {
+      el.classList.remove("active");
+      el.classList.add("done");
+    });
+  },
+
+  resetSteps() {
+    document.querySelectorAll(".step").forEach((s) => s.classList.remove("active", "done"));
+    $("progress-bar").style.width = "0%";
+    $("progress-bar").classList.remove("success");
+    $("progress-text").textContent = "Idle";
+    $("timer").textContent = "00:00";
+    $("log").textContent = "";
+    progress.reset();
+  },
+};
 
 function timestamp() {
   const d = new Date();
@@ -48,144 +82,11 @@ function appendLog(line) {
   log.scrollTop = log.scrollHeight;
 }
 
-function setPhase(phaseName) {
-  const steps = document.querySelectorAll(".step");
-  let reached = false;
-  steps.forEach((el) => {
-    el.classList.remove("active", "done");
-    if (el.dataset.phase === phaseName) {
-      el.classList.add("active");
-      reached = true;
-    } else if (!reached) {
-      el.classList.add("done");
-    }
-  });
-}
-
-function markAllStepsDone() {
-  document.querySelectorAll(".step").forEach((el) => {
-    el.classList.remove("active");
-    el.classList.add("done");
-  });
-}
-
-function resetSteps() {
-  document.querySelectorAll(".step").forEach((s) => s.classList.remove("active", "done"));
-  $("progress-bar").style.width = "0%";
-  $("progress-bar").classList.remove("success");
-  $("progress-text").textContent = "Idle";
-  $("timer").textContent = "00:00";
-  $("log").textContent = "";
-  _emmcImageBytes = 0;
-  resetEta();
-}
-
 // --- Elapsed-time + ETA + progress interpolation ---
-let _flashStartMs = 0;
-let _timerHandle = null;
-// Single tqdm anchor: updated on every progress event with a remaining field.
-// Both ETA countdown and bar interpolation derive from this alone.
-let _emmcImageBytes = 0;
-let _tqdmPct = 0;
-let _tqdmAnchorMs = 0;
-let _tqdmRemainingMs = 0;
-let _progressActive = false;  // true during eMMC interpolation
-let _progressLabel = "";
-let _progressStartMs = 0;     // when eMMC phase began (pre-tqdm fallback)
-let _progressEstMs = 0;       // estimated total duration from image size
-
 function formatElapsed(ms) {
   const s = Math.floor(ms / 1000);
   const pad = (n) => String(n).padStart(2, "0");
   return pad(Math.floor(s / 60)) + ":" + pad(s % 60);
-}
-
-function _timerTick() {
-  const now = Date.now();
-  $("timer").textContent = formatElapsed(now - _flashStartMs);
-
-  if (!_progressActive) {
-    if (_tqdmAnchorMs > 0) {
-      const remMs = Math.max(0, _tqdmRemainingMs - (now - _tqdmAnchorMs));
-      $("eta").textContent = formatElapsed(remMs) + " left";
-    }
-    return;
-  }
-
-  let display;
-  if (_tqdmAnchorMs > 0) {
-    const rate = _tqdmRemainingMs > 0 ? (100 - _tqdmPct) / _tqdmRemainingMs : 0;
-    display = Math.min(99, _tqdmPct + rate * (now - _tqdmAnchorMs));
-    const remMs = Math.max(0, _tqdmRemainingMs - (now - _tqdmAnchorMs));
-    $("eta").textContent = formatElapsed(remMs) + " left";
-  } else if (_progressEstMs > 0) {
-    display = Math.min(18, ((now - _progressStartMs) / _progressEstMs) * 100);
-  }
-
-  if (display !== undefined) {
-    $("progress-bar").style.width = display + "%";
-    if (_progressLabel && _emmcImageBytes) {
-      const pct = Math.round(display);
-      const done = humanBytes(Math.round((display / 100) * _emmcImageBytes));
-      const total = humanBytes(_emmcImageBytes);
-      $("progress-text").textContent = `${_progressLabel}: ${done} / ${total} (${pct}%)`;
-    }
-  }
-}
-
-function startTimer() {
-  _flashStartMs = Date.now();
-  stopTimer();
-  _timerHandle = setInterval(_timerTick, 500);
-}
-
-function stopTimer() {
-  if (_timerHandle) {
-    clearInterval(_timerHandle);
-    _timerHandle = null;
-  }
-}
-
-function resetEta() {
-  _tqdmPct = 0;
-  _tqdmAnchorMs = 0;
-  _tqdmRemainingMs = 0;
-  _progressActive = false;
-  _progressLabel = "";
-  _progressStartMs = 0;
-  _progressEstMs = 0;
-  const el = $("eta");
-  el.textContent = "";
-  el.classList.add("hidden");
-}
-
-function startFlashProgress() {
-  // Snap bar to 100% (U-Boot done), then reset to 0% and activate interpolation.
-  const bar = $("progress-bar");
-  bar.style.width = "100%";
-  setTimeout(() => {
-    bar.style.transition = "none";
-    bar.style.width = "0%";
-    void bar.offsetHeight; // force reflow to re-engage CSS transition
-    bar.style.transition = "";
-    _tqdmPct = 0;
-    _tqdmAnchorMs = 0;
-    _progressLabel = _progressLabel || "emmc.img";
-    _progressActive = true;
-    _progressStartMs = Date.now();
-    // Estimate total flash time from image size.
-    // Measured: ~0.695s send + ~1.38s write per 24 MB chunk = ~10.5 MB/s effective.
-    // Add ~3s fixed overhead (bootloader flash + fastboot handshake at phase start).
-    _progressEstMs = _emmcImageBytes
-      ? (3 + (_emmcImageBytes / (1024 * 1024)) / 10.5) * 1000
-      : 110_000;
-    $("eta").classList.remove("hidden");
-  }, 1600);
-}
-
-function parseHHMMSS(s) {
-  const parts = s.split(":").map(Number);
-  return parts.some(isNaN) ? 0 : parts.reduce((acc, p) => acc * 60 + p, 0) * 1000;
 }
 
 function humanBytes(n) {
@@ -196,11 +97,150 @@ function humanBytes(n) {
   return (i === 0 ? n : n.toFixed(i < 3 ? 1 : 2)) + " " + units[i];
 }
 
+function parseHHMMSS(s) {
+  const parts = s.split(":").map(Number);
+  return parts.some(isNaN) ? 0 : parts.reduce((acc, p) => acc * 60 + p, 0) * 1000;
+}
+
+class FlashProgress {
+  constructor() {
+    this._startMs = 0;
+    this._timerHandle = null;
+    this._imageBytes = 0;
+    this._tqdmPct = 0;
+    this._tqdmAnchorMs = 0;
+    this._tqdmRemainingMs = 0;
+    this._active = false;   // true during eMMC interpolation
+    this._label = "";
+    this._phaseStartMs = 0; // when eMMC phase began (pre-tqdm fallback)
+    this._estMs = 0;        // estimated total duration from image size
+  }
+
+  setImageBytes(bytes) {
+    this._imageBytes = bytes;
+  }
+
+  // Called on each incoming phase event to stop eMMC interpolation.
+  deactivate() {
+    this._active = false;
+    this._label = "";
+  }
+
+  startTimer() {
+    this._startMs = Date.now();
+    this.stopTimer();
+    this._timerHandle = setInterval(() => this._tick(), 500);
+  }
+
+  stopTimer() {
+    if (this._timerHandle) {
+      clearInterval(this._timerHandle);
+      this._timerHandle = null;
+    }
+  }
+
+  // Resets all ETA/interpolation state including the image size.
+  reset() {
+    this._tqdmPct = 0;
+    this._tqdmAnchorMs = 0;
+    this._tqdmRemainingMs = 0;
+    this._active = false;
+    this._label = "";
+    this._phaseStartMs = 0;
+    this._estMs = 0;
+    this._imageBytes = 0;
+    const el = $("eta");
+    el.textContent = "";
+    el.classList.add("hidden");
+  }
+
+  // Snap bar to 100% (U-Boot done), reset to 0%, then start interpolated progress.
+  startFlashProgress() {
+    const bar = $("progress-bar");
+    bar.style.width = "100%";
+    setTimeout(() => {
+      bar.style.transition = "none";
+      bar.style.width = "0%";
+      void bar.offsetHeight; // force reflow to re-engage CSS transition
+      bar.style.transition = "";
+      this._tqdmPct = 0;
+      this._tqdmAnchorMs = 0;
+      this._label = this._label || "emmc.img";
+      this._active = true;
+      this._phaseStartMs = Date.now();
+      // Estimate total flash time from image size.
+      // Measured: ~0.695s send + ~1.38s write per 24 MB chunk = ~10.5 MB/s effective.
+      // Add ~3s fixed overhead (bootloader flash + fastboot handshake at phase start).
+      this._estMs = this._imageBytes
+        ? (3 + (this._imageBytes / (1024 * 1024)) / 10.5) * 1000
+        : 110_000;
+      $("eta").classList.remove("hidden");
+    }, 1600);
+  }
+
+  // Handles incoming progress events — updates tqdm anchor or snaps bar directly.
+  onProgress(evt) {
+    const pct = Number(evt.percent) || 0;
+    if (evt.label) this._label = evt.label;
+    if (this._active) {
+      // Update tqdm anchor; bar/text are driven by the timer tick.
+      if (evt.remaining) {
+        const remMs = parseHHMMSS(evt.remaining);
+        if (remMs > 0) {
+          this._tqdmPct = pct;
+          this._tqdmAnchorMs = Date.now();
+          this._tqdmRemainingMs = remMs;
+        }
+      }
+    } else {
+      // Non-eMMC (U-Boot FIP load) — snap directly.
+      $("progress-bar").style.width = pct + "%";
+      $("progress-text").textContent =
+        `${evt.label}: ${evt.current} / ${evt.total} (${pct}%)`;
+    }
+  }
+
+  _tick() {
+    const now = Date.now();
+    $("timer").textContent = formatElapsed(now - this._startMs);
+
+    if (!this._active) {
+      if (this._tqdmAnchorMs > 0) {
+        const remMs = Math.max(0, this._tqdmRemainingMs - (now - this._tqdmAnchorMs));
+        $("eta").textContent = formatElapsed(remMs) + " left";
+      }
+      return;
+    }
+
+    let display;
+    if (this._tqdmAnchorMs > 0) {
+      const rate = this._tqdmRemainingMs > 0 ? (100 - this._tqdmPct) / this._tqdmRemainingMs : 0;
+      display = Math.min(99, this._tqdmPct + rate * (now - this._tqdmAnchorMs));
+      const remMs = Math.max(0, this._tqdmRemainingMs - (now - this._tqdmAnchorMs));
+      $("eta").textContent = formatElapsed(remMs) + " left";
+    } else if (this._estMs > 0) {
+      display = Math.min(18, ((now - this._phaseStartMs) / this._estMs) * 100);
+    }
+
+    if (display !== undefined) {
+      $("progress-bar").style.width = display + "%";
+      if (this._label && this._imageBytes) {
+        const pct = Math.round(display);
+        const done = humanBytes(Math.round((display / 100) * this._imageBytes));
+        const total = humanBytes(this._imageBytes);
+        $("progress-text").textContent = `${this._label}: ${done} / ${total} (${pct}%)`;
+      }
+    }
+  }
+}
+
+const progress = new FlashProgress();
+
 function setFlashIdle() {
   $("btn-start").disabled = false;
   $("btn-cancel").disabled = true;
-  stopTimer();
-  resetEta();
+  progress.stopTimer();
+  progress.reset();
   refreshCacheInfo();
 }
 
@@ -208,60 +248,41 @@ function setFlashIdle() {
 window.onFlasherEvent = function (evt) {
   switch (evt.type) {
     case "status":
-      if (evt.status === "starting" || evt.status === "running") setStatus("Running", "running");
+      if (evt.status === "starting" || evt.status === "running") flashUI.setStatus("Running", "running");
       else if (evt.status === "success") {
-        setStatus("Success", "success");
-        markAllStepsDone();
+        flashUI.setStatus("Success", "success");
+        flashUI.markAllStepsDone();
         $("progress-bar").style.width = "100%";
         $("progress-bar").classList.add("success");
         $("progress-text").textContent = "Complete. You can unplug the device.";
         setFlashIdle();
       } else if (evt.status === "cancelled") {
-        setStatus("Cancelled", "error");
+        flashUI.setStatus("Cancelled", "error");
         setFlashIdle();
       } else if (evt.status === "error") {
-        setStatus("Failed", "error");
+        flashUI.setStatus("Failed", "error");
         $("progress-text").textContent = "Flashing failed. See log for details.";
         setFlashIdle();
       }
       break;
     case "phase":
-      setPhase(evt.phase);
-      _progressActive = false;
-      _progressLabel = "";
+      flashUI.setPhase(evt.phase);
+      progress.deactivate();
       $("progress-text").textContent = evt.phase;
       if (evt.phase === "BootROM Detection") {
         $("progress-text").innerHTML =
           "➜ <b>Plug in the SMHUB device now</b> " +
           "(or unplug &amp; replug if already connected)";
       } else if (evt.phase === "eMMC Flash") {
-        startFlashProgress();
+        progress.startFlashProgress();
       }
       break;
     case "image_size":
-      _emmcImageBytes = evt.bytes;
+      progress.setImageBytes(evt.bytes);
       break;
-    case "progress": {
-      const pct = Number(evt.percent) || 0;
-      if (evt.label) _progressLabel = evt.label;
-      if (_progressActive) {
-        // Update tqdm anchor; bar/text are driven by the timer tick.
-        if (evt.remaining) {
-          const remMs = parseHHMMSS(evt.remaining);
-          if (remMs > 0) {
-            _tqdmPct = pct;
-            _tqdmAnchorMs = Date.now();
-            _tqdmRemainingMs = remMs;
-          }
-        }
-      } else {
-        // Non-eMMC (U-Boot FIP load) — snap directly.
-        $("progress-bar").style.width = pct + "%";
-        $("progress-text").textContent =
-          `${evt.label}: ${evt.current} / ${evt.total} (${pct}%)`;
-      }
+    case "progress":
+      progress.onProgress(evt);
       break;
-    }
     case "prep_phase":
       // Download/Verify/Extract phases before flashing begins.
       $("progress-text").textContent = evt.phase;
@@ -292,7 +313,7 @@ window.onFlasherEvent = function (evt) {
       if (evt.message) appendLog("[ERROR] " + evt.message);
       break;
     case "usb_permission_denied":
-      setStatus("Failed", "error");
+      flashUI.setStatus("Failed", "error");
       setFlashIdle();
       applyDriverScreenForPlatform(evt.platform);
       $("driver-status-1").textContent = "Needs setup";
@@ -608,19 +629,19 @@ async function init() {
   });
 
   $("btn-start").addEventListener("click", async () => {
-    resetSteps();
-    startTimer();
+    flashUI.resetSteps();
+    progress.startTimer();
     $("btn-start").disabled = true;
     $("btn-cancel").disabled = false;
-    setStatus("Running", "running");
+    flashUI.setStatus("Running", "running");
     // Light up the step-1 indicator immediately so the UI feels responsive.
-    setPhase("BootROM Detection");
+    flashUI.setPhase("BootROM Detection");
     let res;
     if (currentMode === "online") {
       const channel = $("online-channel").value;
       const version = $("online-version").value;
       if (!version) {
-        setStatus("Idle", "idle");
+        flashUI.setStatus("Idle", "idle");
         setFlashIdle();
         alert("Pick a channel and version first.");
         return;
@@ -633,7 +654,7 @@ async function init() {
       res = await window.pywebview.api.start_flash(folder);
     }
     if (!res.ok) {
-      setStatus("Failed", "error");
+      flashUI.setStatus("Failed", "error");
       alert("Could not start: " + (res.error || "unknown"));
       setFlashIdle();
     }
