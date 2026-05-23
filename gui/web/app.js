@@ -79,7 +79,7 @@ function timestamp() {
 function appendLog(line) {
   const log = $("log");
   log.textContent += "[" + timestamp() + "] " + line + "\n";
-  log.scrollTop = log.scrollHeight;
+  requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; });
 }
 
 // --- Elapsed-time + ETA + progress interpolation ---
@@ -687,6 +687,10 @@ async function init() {
     e.stopPropagation();
     e.preventDefault();
     copyToClipboard($("driver-linux-code").textContent, $("btn-copy-udev"));
+  });
+
+  document.querySelector(".log-details").addEventListener("toggle", (e) => {
+    if (window.pywebview) window.pywebview.api.set_log_expanded(e.target.open);
   });
 
   switchMode("online");

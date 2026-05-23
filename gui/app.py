@@ -154,7 +154,10 @@ class Api:
     def bind_window(self, window: webview.Window) -> None:
         self._window = window
 
-    # ---- UI helpers --------------------------------------------------------
+    def set_log_expanded(self, expanded: bool) -> None:
+        if not self._window:
+            return
+        self._window.resize(760, 900 if expanded else 620)
 
     def pick_folder(self) -> str | None:
         if not self._window:
