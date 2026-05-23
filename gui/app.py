@@ -363,6 +363,38 @@ def _js_safe(obj: dict) -> str:
 
     return json.dumps(obj)
 
+
+def _hook_dpi_nudge(window: webview.Window) -> None:
+    """Nudge window size on DPI change to force a WebKit repaint on Linux/NVIDIA."""
+    try:
+        import gi
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import GLib  # type: ignore[import-untyped]
+        from webview.platforms.gtk import BrowserView  # type: ignore[import-untyped]
+
+        def _connect() -> bool:
+            bv = BrowserView.instances.get(window.uid)
+            if not bv:
+                return False
+            gtk_win = bv.window
+
+            def _on_scale_change(*_: object) -> None:
+                def _nudge() -> bool:
+                    w, h = gtk_win.get_size()
+                    gtk_win.resize(w + 1, h)
+                    GLib.idle_add(gtk_win.resize, w, h)
+                    return False
+                for delay in (50, 200, 500, 1000):
+                    GLib.timeout_add(delay, _nudge)
+
+            gtk_win.connect("notify::scale-factor", _on_scale_change)
+            return False
+
+        GLib.idle_add(_connect)
+    except Exception:
+        pass
+
+
 def main() -> None:
     api = Api()
     window = webview.create_window(
@@ -377,6 +409,8 @@ def main() -> None:
         transparent=False,
     )
     api.bind_window(window)
+    if sys.platform == "linux" and os.environ.get("WEBKIT_DISABLE_DMABUF_RENDERER"):
+        window.events.loaded += lambda: _hook_dpi_nudge(window)
     try:
         webview.start(debug=False)
     finally:
