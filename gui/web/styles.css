@@ -345,7 +345,7 @@ button:disabled {
 
 .progress-bar {
   height: 100%;
-  width: 0%;
+  width: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent-hover));
   transform: scaleX(0);
   transform-origin: left center;

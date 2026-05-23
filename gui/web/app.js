@@ -60,7 +60,7 @@ const flashUI = {
 
   resetSteps() {
     document.querySelectorAll(".step").forEach((s) => s.classList.remove("active", "done"));
-    $("progress-bar").style.width = "0%";
+    $("progress-bar").style.transform = "scaleX(0)";
     $("progress-bar").classList.remove("success");
     $("progress-text").textContent = "Idle";
     $("timer").textContent = "00:00";
@@ -129,12 +129,18 @@ class FlashProgress {
   startTimer() {
     this._startMs = Date.now();
     this.stopTimer();
-    this._timerHandle = setInterval(() => this._tick(), 500);
+    let lastTick = 0;
+    const loop = (ts) => {
+      if (!this._timerHandle) return;
+      if (ts - lastTick >= 500) { lastTick = ts; this._tick(); }
+      this._timerHandle = requestAnimationFrame(loop);
+    };
+    this._timerHandle = requestAnimationFrame(loop);
   }
 
   stopTimer() {
     if (this._timerHandle) {
-      clearInterval(this._timerHandle);
+      cancelAnimationFrame(this._timerHandle);
       this._timerHandle = null;
     }
   }
@@ -157,10 +163,10 @@ class FlashProgress {
   // Snap bar to 100% (U-Boot done), reset to 0%, then start interpolated progress.
   startFlashProgress() {
     const bar = $("progress-bar");
-    bar.style.width = "100%";
+    bar.style.transform = "scaleX(1)";
     setTimeout(() => {
       bar.style.transition = "none";
-      bar.style.width = "0%";
+      bar.style.transform = "scaleX(0)";
       void bar.offsetHeight; // force reflow to re-engage CSS transition
       bar.style.transition = "";
       this._tqdmPct = 0;
@@ -194,7 +200,7 @@ class FlashProgress {
       }
     } else {
       // Non-eMMC (U-Boot FIP load) — snap directly.
-      $("progress-bar").style.width = pct + "%";
+      $("progress-bar").style.transform = `scaleX(${pct / 100})`;
       $("progress-text").textContent =
         `${evt.label}: ${evt.current} / ${evt.total} (${pct}%)`;
     }
@@ -223,7 +229,7 @@ class FlashProgress {
     }
 
     if (display !== undefined) {
-      $("progress-bar").style.width = display + "%";
+      $("progress-bar").style.transform = `scaleX(${display / 100})`;
       if (this._label && this._imageBytes) {
         const pct = Math.round(display);
         const done = humanBytes(Math.round((display / 100) * this._imageBytes));
@@ -252,7 +258,7 @@ window.onFlasherEvent = function (evt) {
       else if (evt.status === "success") {
         flashUI.setStatus("Success", "success");
         flashUI.markAllStepsDone();
-        $("progress-bar").style.width = "100%";
+        $("progress-bar").style.transform = "scaleX(1)";
         $("progress-bar").classList.add("success");
         $("progress-text").textContent = "Complete. You can unplug the device.";
         setFlashIdle();
