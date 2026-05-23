@@ -398,6 +398,10 @@ class FlasherFSM:
         if sys.platform == "win32":
             await asyncio.sleep(1.0)
 
+        # Probe descriptor access before handing off to the fastboot binary.
+        # On Linux without udev rules the device is visible but not openable (EACCES).
+        await asyncio.to_thread(UsbTransport.probe_access, vid, pid)
+
         if not self._resolve_fastboot_bin():
             self.state = "DONE"
             return

@@ -13,6 +13,8 @@ import fastcrc
 import usb.core
 import usb.util
 
+from .exceptions import UsbPermissionError
+
 logger = logging.getLogger(__name__)
 
 TRACE = 5
@@ -47,6 +49,24 @@ class UsbTransport:
         self.intf_number: int | None = None
         self.last_ack_packet: Sequence[int] | None = None
 
+    @staticmethod
+    def probe_access(vid: int, pid: int) -> None:
+        """Try to read the device descriptor; raise UsbPermissionError on EACCES.
+
+        Safe to call before handing off to an external tool (e.g. fastboot) — reads
+        only the already-enumerated configuration descriptor, never claims an interface.
+        """
+        dev = usb.core.find(idVendor=vid, idProduct=pid)
+        if dev is None:
+            return
+        try:
+            _ = dev[0]
+        except usb.core.USBError as e:
+            if getattr(e, "errno", None) == 13:
+                raise UsbPermissionError(
+                    f"USB access denied for {vid:04x}:{pid:04x}"
+                ) from e
+
     def connect_sync(self) -> None:
         """Synchronously find and configure device."""
         if self.device is None:
@@ -64,11 +84,19 @@ class UsbTransport:
             except NotImplementedError:
                 pass
             except usb.USBError as e:
+                if getattr(e, "errno", None) == 13:
+                    raise UsbPermissionError(
+                        f"USB access denied for {self.vid:04x}:{self.pid:04x}"
+                    ) from e
                 logger.warning(f"Failed to detach kernel driver: {e}")
 
         try:
             cfg = self.device[0]
         except usb.core.USBError as e:
+            if getattr(e, "errno", None) == 13:
+                raise UsbPermissionError(
+                    f"USB access denied for {self.vid:04x}:{self.pid:04x}"
+                ) from e
             raise RuntimeError(
                 f"Failed to retrieve device configuration descriptors: {e}"
             )
