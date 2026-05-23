@@ -554,9 +554,6 @@ async function refreshDriverStatus() {
     const dr = await window.pywebview.api.check_driver();
     applyDriverScreenForPlatform(dr.platform);
     if (dr.platform === "linux") {
-      // On Linux we never block at startup — udev errors are caught inline
-      // during flashing (usb_permission_denied event). The Refresh button here
-      // just lets the user confirm they've run the udev commands.
       $("driver-status-1").textContent = "Installed";
       $("driver-status-1").className = "driver-status ok";
       $("btn-driver-continue").disabled = false;
