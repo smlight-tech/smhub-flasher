@@ -27,7 +27,8 @@ html, body {
 body {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 header {
@@ -48,6 +49,7 @@ header h1 {
 
 main {
   flex: 1;
+  min-height: 0;
   padding: 22px;
   overflow-y: auto;
 }
@@ -345,12 +347,14 @@ button:disabled {
 
 .progress-bar {
   height: 100%;
-  width: 0%;
+  width: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent-hover));
-  /* Longer ease — smooths out fastboot.exe's bursty progress updates
-     (it emits ~10 percentages in milliseconds during a "Send" phase,
-     then nothing for 6 s during the "Write" phase). */
-  transition: width 1.5s ease-out;
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+  /* Long ease smooths fastboot's burst writes: many % updates arrive in
+     milliseconds during "Sending", then nothing for ~1.4 s during "Writing". */
+  transition: transform 1.5s ease-out;
 }
 
 .progress-bar.success {
@@ -403,22 +407,54 @@ button:disabled {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 8px 12px;
+  overflow: hidden;
 }
 
 .log-details summary {
   cursor: pointer;
-  color: var(--muted);
-  font-size: 12px;
+  list-style: none;        /* hide native marker */
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.log-details summary::-webkit-details-marker { display: none; }
+
+.log-details summary::before {
+  content: "\25B6";   /* ▶ */
+  font-size: 9px;
+  color: var(--muted);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.log-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.log-details[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.log-details summary:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.log-details > pre {
+  margin: 0;
+  border-radius: 0;
 }
 
 .log-actions {
   display: inline-flex;
   gap: 6px;
+  margin-left: auto;
 }
 
 .log-actions button {
@@ -431,7 +467,7 @@ button:disabled {
 }
 
 #log, #driver-linux-code {
-  max-height: 260px;
+  max-height: 340px;
   overflow-y: auto;
   font-family: Consolas, "Courier New", monospace;
   font-size: 11.5px;
@@ -439,8 +475,8 @@ button:disabled {
   color: #d8deea;
   background: #15171d;
   padding: 10px;
-  border-radius: 4px;
-  margin: 8px 0 0;
+  border-radius: 0 0 6px 6px;
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
   -webkit-user-select: text;
