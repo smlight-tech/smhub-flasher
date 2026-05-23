@@ -339,11 +339,19 @@ function switchMode(mode) {
   $("panel-online").classList.toggle("hidden", mode !== "online");
   $("panel-local").classList.toggle("hidden", mode !== "local");
   $("panel-console").classList.toggle("hidden", mode !== "console");
+  $("panel-flashing-controls").classList.toggle("hidden", mode === "console");
 
   if (mode === "console") {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.resize_window) {
+      window.pywebview.api.resize_window(900, 720);
+    }
     initTerminal();
     setTimeout(() => fitAddon.fit(), 0);
   } else {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.set_log_expanded) {
+      const logDetails = document.querySelector(".log-details");
+      window.pywebview.api.set_log_expanded(logDetails ? logDetails.open : false);
+    }
     // Clean up resource contention if navigating away
     const btn = $("btn-console-connect");
     if (btn && btn.textContent === "Disconnect") {
@@ -719,7 +727,8 @@ function initTerminal() {
     cursorBlink: true,
     theme: { background: '#000000' },
     fontFamily: 'monospace',
-    fontSize: 14,
+    fontSize: 12,
+    lineHeight: 1.2,
   });
   fitAddon = new window.FitAddon.FitAddon();
   terminal.loadAddon(fitAddon);

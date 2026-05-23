@@ -95,50 +95,60 @@ sudo udevadm trigger</pre>
       </div>
 
       <!-- Console panel -->
-      <div id="panel-console" class="panel hidden console-panel">
-        <div id="terminal-container" class="console-terminal"></div>
-        <div class="console-footer">
-          <span id="console-status" class="console-status">Disconnected</span>
-          <button id="btn-console-connect" type="button" class="console-btn">Connect</button>
-        </div>
-      </div>
-
-      <div class="stepper">
-        <div class="step" data-phase="BootROM Detection">1. Detect device</div>
-        <div class="step" data-phase="BootROM Handshake">2. Handshake</div>
-        <div class="step" data-phase="U-Boot Load">3. Load U-Boot</div>
-        <div class="step" data-phase="eMMC Flash">4. Flash eMMC</div>
-        <div class="step" data-phase="Done">5. Done</div>
-      </div>
-
-      <div class="field">
-        <div class="progress-wrap">
-          <div id="progress-bar" class="progress-bar"></div>
-        </div>
-        <div class="progress-row">
-          <div id="progress-text" class="hint">Idle</div>
-          <div class="timer-group">
-            <span id="timer" class="hint timer">00:00</span>
-            <span id="eta" class="hint eta hidden"></span>
+      <div id="panel-console" class="panel hidden" style="flex: 1; display: flex; flex-direction: column;">
+        <p style="margin: 0 0 10px 0; color: var(--muted); font-size: 13px; line-height: 1.4;">
+          Connect over USB to access the raw serial recovery console. Use this to rescue devices, pull backups, or perform manual diagnostics.
+        </p>
+        <div class="console-panel">
+          <div id="terminal-container" class="console-terminal"></div>
+          <div class="console-footer">
+            <span id="console-status" class="console-status">Disconnected</span>
+            <div style="display:flex; gap:8px;">
+              <button id="btn-file-transfer" type="button" class="console-btn" disabled>File Transfer</button>
+              <button id="btn-console-connect" type="button" class="console-btn">Connect</button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="row">
-        <button id="btn-start" class="primary" disabled>Start flashing</button>
-        <button id="btn-cancel" disabled>Cancel</button>
-      </div>
+      <div id="panel-flashing-controls">
+        <div class="stepper">
+          <div class="step" data-phase="BootROM Detection">1. Detect device</div>
+          <div class="step" data-phase="BootROM Handshake">2. Handshake</div>
+          <div class="step" data-phase="U-Boot Load">3. Load U-Boot</div>
+          <div class="step" data-phase="eMMC Flash">4. Flash eMMC</div>
+          <div class="step" data-phase="Done">5. Done</div>
+        </div>
 
-      <details class="log-details">
-        <summary>
-          Log output
-          <span class="log-actions">
-            <button id="btn-copy-log" type="button">Copy</button>
-            <button id="btn-clear-log" type="button">Clear</button>
-          </span>
-        </summary>
-        <pre id="log" tabindex="0"></pre>
-      </details>
+        <div class="field">
+          <div class="progress-wrap">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+          <div class="progress-row">
+            <div id="progress-text" class="hint">Idle</div>
+            <div class="timer-group">
+              <span id="timer" class="hint timer">00:00</span>
+              <span id="eta" class="hint eta hidden"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="btn-start" class="primary" disabled>Start flashing</button>
+          <button id="btn-cancel" disabled>Cancel</button>
+        </div>
+
+        <details class="log-details">
+          <summary>
+            Log output
+            <span class="log-actions">
+              <button id="btn-copy-log" type="button">Copy</button>
+              <button id="btn-clear-log" type="button">Clear</button>
+            </span>
+          </summary>
+          <pre id="log" tabindex="0"></pre>
+        </details>
+      </div>
     </section>
   </main>
 

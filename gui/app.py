@@ -161,6 +161,10 @@ class Api:
             return
         self._window.resize(760, 900 if expanded else 620)
 
+    def resize_window(self, width: int, height: int) -> None:
+        if self._window:
+            self._window.resize(width, height)
+
     def pick_folder(self) -> str | None:
         if not self._window:
             return None
