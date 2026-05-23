@@ -775,6 +775,13 @@ window.setConsoleStatus = function(status, color) {
   const el = $("console-status");
   el.textContent = status;
   el.style.color = color || "#aaa";
+  const isConnected = status === "Connected";
+  const pushBtn = $("btn-file-push");
+  if (pushBtn) pushBtn.disabled = !isConnected;
+  const logsBtn = $("btn-pull-logs");
+  if (logsBtn) logsBtn.disabled = !isConnected;
+  const backupBtn = $("btn-pull-backup");
+  if (backupBtn) backupBtn.disabled = !isConnected;
 };
 
 $("btn-console-connect").addEventListener("click", async () => {
@@ -806,5 +813,41 @@ $("btn-console-connect").addEventListener("click", async () => {
     window.setConsoleStatus("Disconnected", "#aaa");
   }
 });
+
+const btnPush = $("btn-file-push");
+if (btnPush) {
+  btnPush.addEventListener("click", async () => {
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.console_push_file();
+      if (!res.ok && res.error && res.error !== "No file selected") {
+        alert("Push File failed: " + res.error);
+      }
+    }
+  });
+}
+
+const btnPullLogs = $("btn-pull-logs");
+if (btnPullLogs) {
+  btnPullLogs.addEventListener("click", async () => {
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.console_pull_logs();
+      if (!res.ok && res.error && res.error !== "No destination selected") {
+        alert("Get Logs failed: " + res.error);
+      }
+    }
+  });
+}
+
+const btnPullBackup = $("btn-pull-backup");
+if (btnPullBackup) {
+  btnPullBackup.addEventListener("click", async () => {
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.console_pull_backup();
+      if (!res.ok && res.error && res.error !== "No destination selected") {
+        alert("Get Backup failed: " + res.error);
+      }
+    }
+  });
+}
 
 window.addEventListener("pywebviewready", init);

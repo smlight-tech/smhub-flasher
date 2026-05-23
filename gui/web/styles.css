@@ -595,6 +595,7 @@ button:disabled {
   flex: 1;
   overflow: hidden;
   min-height: 280px;
+  min-width: 0;
 }
 
 .console-footer {
