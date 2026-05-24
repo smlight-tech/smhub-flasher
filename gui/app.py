@@ -444,7 +444,7 @@ class Api:
         self._console.write("rz\r")
         time.sleep(0.5)
 
-        success = self._console.run_zmodem([sz_bin, "-b", "-e", file_path])
+        success = self._console.run_zmodem([sz_bin, "-vv", "-b", "-e", file_path])
         return {"ok": success}
 
     def console_pull_logs(self) -> dict:
@@ -473,7 +473,7 @@ class Api:
             "tar -czf /tmp/smhub_logs.tar.gz -C /var/log . && sz /tmp/smhub_logs.tar.gz\r"
         )
         time.sleep(1.0)
-        success = self._console.run_zmodem([rz_bin, "-b", "-e"], cwd=folder)
+        success = self._console.run_zmodem([rz_bin, "-vv", "-b", "-e"], cwd=folder)
         return {"ok": success}
 
     def console_pull_backup(self) -> dict:
@@ -504,7 +504,7 @@ class Api:
         time.sleep(
             2.0
         )  # Give the script some time to generate the backup before catching
-        success = self._console.run_zmodem([rz_bin, "-b", "-e"], cwd=folder)
+        success = self._console.run_zmodem([rz_bin, "-vv", "-b", "-e"], cwd=folder)
         return {"ok": success}
 
 

@@ -97,20 +97,43 @@ class SerialConsole:
         if not self.port or not self.port.is_open:
             return False
 
+        # Hide cursor in the UI terminal during transfer to prevent flicker
+        self.on_data_cb("\x1b[?25l")
+
         import subprocess
+        import os
+        import sys
+
+        stderr_dest = subprocess.PIPE
+        master_fd = None
+        slave_fd = None
+
+        try:
+            if sys.platform != "win32":
+                import pty
+
+                master_fd, slave_fd = pty.openpty()
+                stderr_dest = slave_fd
+        except Exception:
+            master_fd = None
+            slave_fd = None
 
         self._zmodem_proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=stderr_dest,
             bufsize=0,
             cwd=cwd,
         )
 
+        if slave_fd is not None:
+            os.close(slave_fd)
+            self._zmodem_proc.stderr = os.fdopen(master_fd, "rb")
+
         def shuttle_to_port():
             try:
-                while True:
+                while getattr(self, "_zmodem_proc", None) is not None:
                     data = self._zmodem_proc.stdout.read(1024)
                     if not data:
                         break
@@ -118,9 +141,31 @@ class SerialConsole:
             except Exception:
                 pass
 
+        def shuttle_stderr_to_ui():
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            try:
+                while getattr(self, "_zmodem_proc", None) is not None:
+                    data = self._zmodem_proc.stderr.read(1024)
+                    if not data:
+                        break
+                    text = decoder.decode(data)
+                    if text:
+                        self.on_data_cb(text)
+            except OSError:
+                # PTY raises OSError (EIO) on Linux when child closes the slave end
+                pass
+            except Exception:
+                pass
+
         t = threading.Thread(target=shuttle_to_port, daemon=True)
         t.start()
 
+        t2 = threading.Thread(target=shuttle_stderr_to_ui, daemon=True)
+        t2.start()
+
         self._zmodem_proc.wait()
         self._zmodem_proc = None
+
+        # Restore cursor in the UI terminal
+        self.on_data_cb("\x1b[?25h")
         return True
