@@ -42,9 +42,80 @@ class SerialConsole:
             )
 
         self.port = serial.Serial(port_name, baudrate=115200, timeout=1.0)
+        self._auto_login()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._read_loop, daemon=True)
         self._thread.start()
+
+    def _flush_to_ui(self, raw: bytes) -> None:
+        if raw:
+            try:
+                self.on_data_cb(raw.decode("utf-8", errors="replace"))
+            except Exception:
+                pass
+
+    def _auto_login(self) -> None:
+        port = self.port
+        old_timeout = port.timeout
+        port.timeout = 0.1
+        try:
+            port.reset_input_buffer()
+            port.reset_output_buffer()
+            port.write(b"\r")
+
+            start_time = time.time()
+            accumulated = b""
+            login_detected = False
+
+            while time.time() - start_time < 2.0:
+                chunk = port.read(1024)
+                if chunk:
+                    accumulated += chunk
+                    if b"login:" in accumulated:
+                        login_detected = True
+                        break
+                    if b"#" in accumulated or b"$" in accumulated:
+                        break
+                else:
+                    port.write(b"\r")
+                    time.sleep(0.1)
+
+            if login_detected:
+                port.write(b"smlight\r")
+                accumulated = b""
+                pwd_detected = False
+                start_time = time.time()
+                while time.time() - start_time < 1.5:
+                    chunk = port.read(1024)
+                    if chunk:
+                        accumulated += chunk
+                        if b"assword:" in accumulated:
+                            pwd_detected = True
+                            break
+                    else:
+                        time.sleep(0.05)
+
+                if pwd_detected:
+                    port.write(b"smlight\r")
+                    prompt = b""
+                    start_time = time.time()
+                    while time.time() - start_time < 1.5:
+                        chunk = port.read(4096)
+                        if chunk:
+                            prompt += chunk
+                            if b"#" in chunk or b"$" in chunk:
+                                break
+                        else:
+                            time.sleep(0.05)
+                    self._flush_to_ui(prompt)
+                else:
+                    self._flush_to_ui(accumulated)
+            else:
+                self._flush_to_ui(accumulated)
+        except Exception:
+            pass
+
+        port.timeout = old_timeout
 
     def disconnect(self) -> None:
         self._stop_event.set()
