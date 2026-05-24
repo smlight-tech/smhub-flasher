@@ -470,7 +470,7 @@ class Api:
 
         # NOTE: Cannot use sudo here because it requires a password on the device and would hang the transfer.
         self._console.write(
-            "tar -czf /tmp/smhub_logs.tar.gz -C /var/log . && sz /tmp/smhub_logs.tar.gz\r"
+            "tar --ignore-failed-read -czf /tmp/smhub_logs.tar.gz -C /var/log . && sz /tmp/smhub_logs.tar.gz\r"
         )
         time.sleep(1.0)
         success = self._console.run_zmodem([rz_bin, "-vv", "-b", "-e"], cwd=folder)
