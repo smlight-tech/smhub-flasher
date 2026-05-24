@@ -391,7 +391,7 @@ class Api:
                 safe_str = _js_safe(text)
                 self._window.evaluate_js(f"window.writeTerminalData({safe_str})")
 
-        def on_disconnect(reason: str) -> None:
+        def on_disconnect(reason: str = "Connection lost") -> None:
             if self._window:
                 self._window.evaluate_js(
                     f"window.setConsoleStatus('Disconnected: {reason}', '#f00')"
@@ -548,6 +548,9 @@ def _hook_dpi_nudge(window: webview.Window) -> None:
 
 
 def main() -> None:
+    if sys.platform == "linux":
+        os.environ.setdefault("GIO_USE_VFS", "local")
+
     api = Api()
     window = webview.create_window(
         title="SMHUB Flasher",
