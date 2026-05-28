@@ -136,8 +136,6 @@ class SerialConsole:
 
     def write(self, data: str) -> None:
         if self.port and self.port.is_open:
-            # Depending on the shell, \r is usually sufficient.
-            # We'll test if we need \r\n replacement later.
             try:
                 self.port.write(data.encode("utf-8"))
             except Exception:

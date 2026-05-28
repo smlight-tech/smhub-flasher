@@ -621,19 +621,64 @@ body.console-active #panel-console {
   border-radius: 50%;
   background: var(--muted);
   display: inline-block;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .console-status-dot.disconnected {
   background: var(--err);
+  box-shadow: 0 0 6px var(--err);
+  animation: pulse-red 2s infinite ease-in-out;
 }
 
 .console-status-dot.connecting {
   background: #f0b84c;
+  box-shadow: 0 0 6px #f0b84c;
+  animation: pulse-amber 1.2s infinite ease-in-out;
 }
 
 .console-status-dot.connected {
   background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+  animation: pulse-green 2s infinite ease-in-out;
+}
+
+@keyframes pulse-red {
+  0%, 100% {
+    transform: scale(0.85);
+    box-shadow: 0 0 2px rgba(255, 92, 92, 0.4);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 14px rgba(255, 92, 92, 0.95);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-amber {
+  0%, 100% {
+    transform: scale(0.85);
+    box-shadow: 0 0 2px rgba(240, 184, 76, 0.4);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 14px rgba(240, 184, 76, 0.95);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 3px rgba(76, 217, 100, 0.5);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 8px rgba(76, 217, 100, 0.85);
+    opacity: 1;
+  }
 }
 
 .console-terminal {
