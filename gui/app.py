@@ -550,6 +550,17 @@ def _hook_dpi_nudge(window: webview.Window) -> None:
 def main() -> None:
     if sys.platform == "linux":
         os.environ.setdefault("GIO_USE_VFS", "local")
+        try:
+            import gi
+
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk  # type: ignore[import-not-found]
+
+            settings = Gtk.Settings.get_default()
+            if settings:
+                settings.set_property("gtk-application-prefer-dark-theme", True)
+        except Exception:
+            pass
 
     api = Api()
     window = webview.create_window(
