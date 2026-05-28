@@ -7,65 +7,26 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Iterable
-
 TARGET_VIDS: list[int] = [0x3346]
 TARGET_PIDS: list[int] = [0x1000]
 
 
-def _iter_enum_usb_keys() -> Iterable[tuple[int, int, str]]:
-    """Yield (vid, pid, service) for every attached USB device in the registry."""
-    if sys.platform != "win32":
-        return
-
-    import winreg
-
-    root = winreg.HKEY_LOCAL_MACHINE
-    try:
-        with winreg.OpenKey(root, r"SYSTEM\CurrentControlSet\Enum\USB") as usb_key:
-            i = 0
-            while True:
-                try:
-                    vid_pid = winreg.EnumKey(usb_key, i)
-                except OSError:
-                    break
-                i += 1
-                # format: VID_3346&PID_1000
-                try:
-                    vid_s, pid_s = vid_pid.split("&")
-                    vid = int(vid_s.split("_")[1], 16)
-                    pid = int(pid_s.split("_")[1], 16)
-                except (ValueError, IndexError):
-                    continue
-
-                try:
-                    with winreg.OpenKey(usb_key, vid_pid) as dev_key:
-                        j = 0
-                        while True:
-                            try:
-                                inst = winreg.EnumKey(dev_key, j)
-                            except OSError:
-                                break
-                            j += 1
-                            try:
-                                with winreg.OpenKey(dev_key, inst) as ikey:
-                                    service, _ = winreg.QueryValueEx(ikey, "Service")
-                                    yield vid, pid, str(service)
-                            except OSError:
-                                continue
-                except OSError:
-                    continue
-    except OSError:
-        return
-
-
 def usb_driver_check(vids: list[int], pids: list[int]) -> bool:
-    """Return True if the USB device has the required driver/permissions (WinUSB on Windows)."""
+    """Return True if the driver package is pre-staged in the Windows Driver Database."""
     if sys.platform != "win32":
         return True
-    for vid, pid, service in _iter_enum_usb_keys():
-        if vid in vids and pid in pids and service.lower() == "winusb":
-            return True
+
+    import winreg
+    root = winreg.HKEY_LOCAL_MACHINE
+    for vid in vids:
+        for pid in pids:
+            hwid_key = f"SYSTEM\\DriverDatabase\\DeviceIds\\USB\\VID_{vid:04X}&PID_{pid:04X}"
+            try:
+                with winreg.OpenKey(root, hwid_key):
+                    return True
+            except OSError:
+                continue
+
     return False
 
 
@@ -95,31 +56,19 @@ Start-Sleep -Seconds 1
 if (Test-Path $catPath) {{
     $cert = (Get-AuthenticodeSignature $catPath).SignerCertificate
     if ($cert) {{
-        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store "TrustedPublisher", "LocalMachine"
-        $store.Open("ReadWrite")
-        $store.Add($cert)
-        $store.Close()
+        foreach ($storeName in @("TrustedPublisher", "Root")) {{
+            $store = New-Object System.Security.Cryptography.X509Certificates.X509Store $storeName, "LocalMachine"
+            $store.Open("ReadWrite")
+            $store.Add($cert)
+            $store.Close()
+        }}
     }}
 }}
 
-$Signature = @"
-[DllImport("newdev.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-public static extern bool UpdateDriverForPlugAndPlayDevices(
-    IntPtr hwndParent,
-    string HardwareId,
-    string FullInfPath,
-    uint InstallFlags,
-    out bool bRebootRequired);
-"@
-Add-Type -MemberDefinition $Signature -Name "DriverInstaller" -Namespace "Win32"
-
-$reboot = $false
-$hwid = "USB\\VID_3346&PID_1000"
 $infPath = "{ext_dir}\\usb_device.inf"
-$result = [Win32.DriverInstaller]::UpdateDriverForPlugAndPlayDevices([IntPtr]::Zero, $hwid, $infPath, 1, [ref]$reboot)
-
-if (-not $result) {{
-    exit [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+pnputil.exe /add-driver "$infPath" /install
+if (-not $?) {{
+    exit 1
 }}
 """
     with open(ps_script_path, "w") as f:
