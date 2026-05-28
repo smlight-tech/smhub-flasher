@@ -41,7 +41,9 @@ class SerialConsole:
                 "Could not automatically discover SMHUB serial port. Make sure the device is fully booted."
             )
 
-        self.port = serial.Serial(port_name, baudrate=115200, timeout=1.0)
+        self.port = serial.Serial(
+            port_name, baudrate=115200, timeout=1.0, exclusive=False
+        )
         self._auto_login()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._read_loop, daemon=True)

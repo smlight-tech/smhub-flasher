@@ -333,6 +333,7 @@ window.onFlasherEvent = function (evt) {
 // --- Mode switching ---
 function switchMode(mode) {
   currentMode = mode;
+  document.body.classList.toggle("console-active", mode === "console");
   document.querySelectorAll(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.mode === mode);
   });
@@ -775,6 +776,19 @@ window.setConsoleStatus = function(status, color) {
   const el = $("console-status");
   el.textContent = status;
   el.style.color = color || "#aaa";
+
+  const dot = $("console-status-dot");
+  if (dot) {
+    dot.className = "console-status-dot";
+    if (status === "Connected") {
+      dot.classList.add("connected");
+    } else if (status === "Connecting...") {
+      dot.classList.add("connecting");
+    } else {
+      dot.classList.add("disconnected");
+    }
+  }
+
   const isConnected = status === "Connected";
   const pushBtn = $("btn-file-push");
   if (pushBtn) pushBtn.disabled = !isConnected;

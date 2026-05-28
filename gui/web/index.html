@@ -100,9 +100,11 @@ sudo udevadm trigger</pre>
           Connect over USB to access the raw serial recovery console. Use this to rescue devices, pull backups, or perform manual diagnostics.
         </p>
         <div class="console-panel">
-          <div id="terminal-container" class="console-terminal"></div>
-          <div class="console-footer">
-            <span id="console-status" class="console-status">Disconnected</span>
+          <div class="console-toolbar">
+            <div class="console-status-group">
+              <span class="console-status-dot disconnected" id="console-status-dot"></span>
+              <span id="console-status" class="console-status">Disconnected</span>
+            </div>
             <div style="display:flex; gap:8px;">
               <button id="btn-file-push" type="button" class="console-btn" disabled>Upload file</button>
               <button id="btn-pull-logs" type="button" class="console-btn" disabled>Get Logs</button>
@@ -110,6 +112,7 @@ sudo udevadm trigger</pre>
               <button id="btn-console-connect" type="button" class="console-btn">Connect</button>
             </div>
           </div>
+          <div id="terminal-container" class="console-terminal"></div>
         </div>
         <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 12px; font-style: italic;">
           * Note: The SMHUB must be in USB "Device" mode (the factory default).

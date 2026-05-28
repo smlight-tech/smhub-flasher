@@ -580,33 +580,72 @@ button:disabled {
 }
 
 /* Console panel styles */
+body.console-active main {
+  overflow-y: hidden;
+}
+
+body.console-active #panel-console {
+  height: 100%;
+}
+
 .console-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 300px;
+  min-height: 0;
   background: #000;
-  padding: 10px;
+  border: 1px solid var(--border);
   border-radius: 6px;
   margin-bottom: 0;
+  overflow: hidden;
+}
+
+.console-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.console-status-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.console-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  display: inline-block;
+  transition: background-color 0.2s ease;
+}
+
+.console-status-dot.disconnected {
+  background: var(--err);
+}
+
+.console-status-dot.connecting {
+  background: #f0b84c;
+}
+
+.console-status-dot.connected {
+  background: var(--ok);
 }
 
 .console-terminal {
   flex: 1;
   overflow: hidden;
-  min-height: 280px;
+  min-height: 0;
   min-width: 0;
-}
-
-.console-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
-  align-items: center;
+  padding: 10px;
 }
 
 .console-status {
-  color: #aaa;
+  color: var(--muted);
   font-size: 12px;
   font-family: monospace;
 }
@@ -614,15 +653,16 @@ button:disabled {
 .console-btn {
   padding: 4px 12px;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   color: #fff;
   border-radius: 4px;
   cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
 }
 
 .console-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: #4a5166;
 }
 
