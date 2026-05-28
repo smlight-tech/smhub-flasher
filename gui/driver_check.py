@@ -32,9 +32,17 @@ def _iter_enum_usb_keys() -> Iterable[tuple[int, int, str]]:
                 i += 1
                 # format: VID_3346&PID_1000
                 try:
-                    vid_s, pid_s = vid_pid.split("&")
-                    vid = int(vid_s.split("_")[1], 16)
-                    pid = int(pid_s.split("_")[1], 16)
+                    parts = vid_pid.split("&")
+                    vid = None
+                    pid = None
+                    for part in parts:
+                        if part.startswith("VID_"):
+                            vid = int(part[4:], 16)
+                        elif part.startswith("PID_"):
+                            pid = int(part[4:], 16)
+
+                    if vid is None or pid is None:
+                        continue
                 except (ValueError, IndexError):
                     continue
 
@@ -102,25 +110,8 @@ if (Test-Path $catPath) {{
     }}
 }}
 
-$Signature = @"
-[DllImport("newdev.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-public static extern bool UpdateDriverForPlugAndPlayDevices(
-    IntPtr hwndParent,
-    string HardwareId,
-    string FullInfPath,
-    uint InstallFlags,
-    out bool bRebootRequired);
-"@
-Add-Type -MemberDefinition $Signature -Name "DriverInstaller" -Namespace "Win32"
-
-$reboot = $false
-$hwid = "USB\\VID_3346&PID_1000"
 $infPath = "{ext_dir}\\usb_device.inf"
-$result = [Win32.DriverInstaller]::UpdateDriverForPlugAndPlayDevices([IntPtr]::Zero, $hwid, $infPath, 1, [ref]$reboot)
-
-if (-not $result) {{
-    exit [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-}}
+pnputil.exe /add-driver $infPath /install
 """
     with open(ps_script_path, "w") as f:
         f.write(ps_content)
