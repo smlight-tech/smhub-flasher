@@ -552,9 +552,17 @@ async function copyToClipboard(text, btn) {
 
 async function runInstaller(buttonId, apiCall) {
   const btn = $(buttonId);
-  const orig = btn.textContent;
+  const origHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.textContent = "Installing…";
+
+  const s1 = $("driver-status-1");
+  if (s1) {
+    s1.textContent = "Installing";
+    s1.className = "driver-status installing";
+  }
+
+  btn.innerHTML = `<span class="spinner"></span>Installing…`;
+
   try {
     const res = await apiCall();
     if (!res.ok) {
@@ -564,7 +572,7 @@ async function runInstaller(buttonId, apiCall) {
     alert("Error: " + e);
   } finally {
     btn.disabled = false;
-    btn.textContent = orig;
+    btn.innerHTML = origHtml;
     await refreshDriverStatus();
   }
 }
