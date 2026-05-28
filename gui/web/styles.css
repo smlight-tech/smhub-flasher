@@ -85,6 +85,13 @@ footer {
   margin: 10px 0;
 }
 
+#btn-driver-continue {
+  margin-top: 18px;
+  padding: 8px 20px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
 .driver-label {
   flex: 1;
   display: flex;
