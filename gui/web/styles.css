@@ -313,36 +313,89 @@ button:disabled {
 .pill.error   { background: rgba(255,92,92,0.18); color: var(--err); }
 .pill.idle    { background: var(--panel-2); color: var(--muted); }
 
-.stepper {
+.stepper-pipeline {
+  position: relative;
   display: flex;
-  gap: 6px;
-  margin: 20px 0 14px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin: 24px 0 20px;
+  padding: 0 10px;
 }
 
-.step {
-  flex: 1 1 0;
-  padding: 10px 8px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+.stepper-progress-line {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border);
+  z-index: 1;
+  border-radius: 999px;
+}
+
+.step-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 2;
+  flex: 1;
   text-align: center;
-  font-size: 12px;
+}
+
+.node-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--border);
   color: var(--muted);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 8px;
 }
 
-.step.active {
-  background: rgba(79,140,255,0.15);
+.node-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 0.25s ease;
+  white-space: nowrap;
+}
+
+.step-node.active .node-circle {
+  background: var(--bg);
   border-color: var(--accent);
-  color: var(--fg);
+  color: var(--accent-hover);
+  box-shadow: 0 0 12px rgba(79, 140, 255, 0.4);
+  transform: scale(1.1);
 }
 
-.step.done {
-  background: rgba(76,217,100,0.12);
+.step-node.active .node-label {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.step-node.done .node-circle {
+  background: var(--panel-2);
   border-color: var(--ok);
   color: var(--ok);
+  box-shadow: 0 0 10px rgba(76, 217, 100, 0.25);
+  font-size: 0;
+}
+
+.step-node.done .node-circle::before {
+  content: "✓";
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.step-node.done .node-label {
+  color: var(--muted);
 }
 
 .progress-wrap {

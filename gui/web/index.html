@@ -120,12 +120,32 @@ sudo udevadm trigger</pre>
       </div>
 
       <div id="panel-flashing-controls">
-        <div class="stepper">
-          <div class="step" data-phase="BootROM Detection">1. Detect device</div>
-          <div class="step" data-phase="BootROM Handshake">2. Handshake</div>
-          <div class="step" data-phase="U-Boot Load">3. Load U-Boot</div>
-          <div class="step" data-phase="eMMC Flash">4. Flash eMMC</div>
-          <div class="step" data-phase="Done">5. Done</div>
+        <div class="stepper-pipeline">
+          <div class="stepper-progress-line"></div>
+          <div class="step-node hidden" id="step-download" data-phase="Download">
+            <div class="node-circle">1</div>
+            <span class="node-label">Download</span>
+          </div>
+          <div class="step-node" data-phase="BootROM Detection">
+            <div class="node-circle">1</div>
+            <span class="node-label">Detect device</span>
+          </div>
+          <div class="step-node" data-phase="BootROM Handshake">
+            <div class="node-circle">2</div>
+            <span class="node-label">Handshake</span>
+          </div>
+          <div class="step-node" data-phase="U-Boot Load">
+            <div class="node-circle">3</div>
+            <span class="node-label">Load U-Boot</span>
+          </div>
+          <div class="step-node" data-phase="eMMC Flash">
+            <div class="node-circle">4</div>
+            <span class="node-label">Flash eMMC</span>
+          </div>
+          <div class="step-node" data-phase="Done">
+            <div class="node-circle">5</div>
+            <span class="node-label">Done</span>
+          </div>
         </div>
 
         <div class="field">

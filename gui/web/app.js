@@ -38,7 +38,7 @@ const flashUI = {
   },
 
   setPhase(phaseName) {
-    const steps = document.querySelectorAll(".step");
+    const steps = document.querySelectorAll(".step-node");
     let reached = false;
     steps.forEach((el) => {
       el.classList.remove("active", "done");
@@ -52,20 +52,21 @@ const flashUI = {
   },
 
   markAllStepsDone() {
-    document.querySelectorAll(".step").forEach((el) => {
+    document.querySelectorAll(".step-node").forEach((el) => {
       el.classList.remove("active");
       el.classList.add("done");
     });
   },
 
   resetSteps() {
-    document.querySelectorAll(".step").forEach((s) => s.classList.remove("active", "done"));
+    document.querySelectorAll(".step-node").forEach((s) => s.classList.remove("active", "done"));
     $("progress-bar").style.transform = "scaleX(0)";
     $("progress-bar").classList.remove("success");
     $("progress-text").textContent = "Idle";
     $("timer").textContent = "00:00";
     $("log").textContent = "";
     progress.reset();
+    refreshStepNumbers();
   },
 };
 
@@ -361,6 +362,23 @@ function switchMode(mode) {
   }
 
   refreshStartButton();
+  refreshStepNumbers();
+}
+
+function refreshStepNumbers() {
+  const isOnline = currentMode === "online";
+  const downloadNode = $("step-download");
+  if (downloadNode) {
+    downloadNode.classList.toggle("hidden", !isOnline);
+  }
+
+  const nodes = document.querySelectorAll(".step-node:not(.hidden)");
+  nodes.forEach((node, index) => {
+    const circle = node.querySelector(".node-circle");
+    if (circle) {
+      circle.textContent = index + 1;
+    }
+  });
 }
 
 function refreshStartButton() {
@@ -663,7 +681,11 @@ async function init() {
     $("btn-cancel").disabled = false;
     flashUI.setStatus("Running", "running");
     // Light up the step-1 indicator immediately so the UI feels responsive.
-    flashUI.setPhase("BootROM Detection");
+    if (currentMode === "online") {
+      flashUI.setPhase("Download");
+    } else {
+      flashUI.setPhase("BootROM Detection");
+    }
     let res;
     if (currentMode === "online") {
       const channel = $("online-channel").value;
