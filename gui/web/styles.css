@@ -176,6 +176,7 @@ select {
   appearance: none;
   -webkit-appearance: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+  color-scheme: dark;
 }
 
 select:hover:not(:disabled) {
@@ -191,6 +192,12 @@ select:focus:not(:disabled) {
 select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+select option {
+  background-color: var(--panel-2) !important;
+  color: var(--fg) !important;
+  color-scheme: dark;
 }
 
 label.inline {
