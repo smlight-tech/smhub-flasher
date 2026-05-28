@@ -10,28 +10,39 @@ import threading
 import traceback
 from pathlib import Path
 
+
 # Crash log — writes to a file next to the .exe so we can diagnose silent
 # startup failures even when --windowed hides stdout/stderr.
 def _crash_log_path() -> str:
     if getattr(sys, "frozen", False):
-        return os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "smhub-flasher-crash.log")
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "smhub-flasher-crash.log")
+        return os.path.join(
+            os.path.dirname(os.path.abspath(sys.executable)), "smhub-flasher-crash.log"
+        )
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "smhub-flasher-crash.log"
+    )
+
 
 def _log_crash(msg: str) -> None:
     try:
         with open(_crash_log_path(), "a", encoding="utf-8") as f:
             from datetime import datetime
+
             f.write(f"[{datetime.now().isoformat()}] {msg}\n")
     except Exception:
         pass
+
 
 def _excepthook(exc_type, exc_value, exc_tb):  # type: ignore[no-untyped-def]
     msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     _log_crash(msg)
     sys.__excepthook__(exc_type, exc_value, exc_tb)
 
+
 sys.excepthook = _excepthook
-_log_crash(f"=== startup === argv={sys.argv} frozen={getattr(sys, 'frozen', False)} executable={sys.executable}")
+_log_crash(
+    f"=== startup === argv={sys.argv} frozen={getattr(sys, 'frozen', False)} executable={sys.executable}"
+)
 
 # PyInstaller on macOS may launch helper subprocesses via sys.executable with
 # Python-style arguments (for example multiprocessing.resource_tracker).
@@ -103,6 +114,7 @@ from driver_check import (
 from flasher_runner import FlasherRunner
 
 import smhub_flasher.downloader as downloader
+from console import SerialConsole
 
 
 def resource_path(relative: str) -> str:
@@ -150,6 +162,7 @@ class Api:
         self._runner: FlasherRunner | None = None
         self._download_thread: threading.Thread | None = None
         self._downloader: downloader.FirmwareDownloader | None = None
+        self._console: SerialConsole | None = None
 
     def bind_window(self, window: webview.Window) -> None:
         self._window = window
@@ -158,6 +171,10 @@ class Api:
         if not self._window:
             return
         self._window.resize(760, 900 if expanded else 620)
+
+    def resize_window(self, width: int, height: int) -> None:
+        if self._window:
+            self._window.resize(width, height)
 
     def pick_folder(self) -> str | None:
         if not self._window:
@@ -193,8 +210,6 @@ class Api:
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
-
-
     # ---- Default paths -----------------------------------------------------
 
     def get_default_rom_path(self) -> dict:
@@ -218,9 +233,14 @@ class Api:
 
     def fetch_notes(self, url: str) -> dict:
         import urllib.request
+
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "SMHUB-Flasher/0.1"})
-            with urllib.request.urlopen(req, timeout=10.0, context=downloader._ssl_ctx()) as resp:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "SMHUB-Flasher/0.1"}
+            )
+            with urllib.request.urlopen(
+                req, timeout=10.0, context=downloader._ssl_ctx()
+            ) as resp:
                 data = resp.read()
             return {"ok": True, "text": data.decode("utf-8")}
         except Exception as e:
@@ -360,6 +380,133 @@ class Api:
 
         return {"ok": cancelled_any}
 
+    # ---- Console -----------------------------------------------------------
+
+    def open_console(self) -> dict:
+        if self._console:
+            self._console.disconnect()
+
+        def on_data(text: str) -> None:
+            if self._window:
+                safe_str = _js_safe(text)
+                self._window.evaluate_js(f"window.writeTerminalData({safe_str})")
+
+        def on_disconnect(reason: str = "Connection lost") -> None:
+            if self._window:
+                self._window.evaluate_js(
+                    f"window.setConsoleStatus('Disconnected: {reason}', '#f00')"
+                )
+                # Auto-change button state back to Connect
+                self._window.evaluate_js(
+                    "document.getElementById('btn-console-connect').textContent = 'Connect';"
+                )
+
+        try:
+            self._console = SerialConsole(on_data, on_disconnect)
+            self._console.connect()
+            return {"ok": True}
+        except Exception as e:
+            self._console = None
+            return {"ok": False, "error": str(e)}
+
+    def close_console(self) -> dict:
+        if self._console:
+            self._console.disconnect()
+            self._console = None
+        return {"ok": True}
+
+    def write_console(self, data: str) -> dict:
+        if self._console:
+            self._console.write(data)
+        return {"ok": True}
+
+    def console_push_file(self) -> dict:
+        if not self._console:
+            return {"ok": False, "error": "Console disconnected"}
+
+        result = self._window.create_file_dialog(webview.FileDialog.OPEN)
+        if not result:
+            return {"ok": False, "error": "No file selected"}
+        file_path = result[0] if isinstance(result, (list, tuple)) else str(result)
+
+        import shutil
+        import time
+
+        sz_bin = resource_path(os.path.join("vendor", f"sz{'.exe' if sys.platform == 'win32' else ''}"))
+        if not os.path.exists(sz_bin):
+            sz_bin = shutil.which("sz")
+            if not sz_bin:
+                return {
+                    "ok": False,
+                    "error": "ZMODEM 'sz' binary not found on host system. Install lrzsz.",
+                }
+
+        self._console.write("rz\r")
+        time.sleep(0.5)
+
+        success = self._console.run_zmodem([sz_bin, "-vv", "-b", "-e", file_path])
+        return {"ok": success}
+
+    def console_pull_logs(self) -> dict:
+        if not self._console:
+            return {"ok": False, "error": "Console disconnected"}
+
+        folder = self._window.create_file_dialog(webview.FileDialog.FOLDER)
+        if not folder:
+            return {"ok": False, "error": "No destination selected"}
+        folder = folder[0] if isinstance(folder, (list, tuple)) else str(folder)
+
+        import shutil
+        import time
+
+        rz_bin = resource_path(os.path.join("vendor", f"rz{'.exe' if sys.platform == 'win32' else ''}"))
+        if not os.path.exists(rz_bin):
+            rz_bin = shutil.which("rz")
+            if not rz_bin:
+                return {
+                    "ok": False,
+                    "error": "ZMODEM 'rz' binary not found on host system. Install lrzsz.",
+                }
+
+        # NOTE: Cannot use sudo here because it requires a password on the device and would hang the transfer.
+        self._console.write(
+            "tar --ignore-failed-read -czf /tmp/smhub_logs.tar.gz -C /var/log . && sz /tmp/smhub_logs.tar.gz\r"
+        )
+        time.sleep(1.0)
+        success = self._console.run_zmodem([rz_bin, "-vv", "-b", "-e"], cwd=folder)
+        return {"ok": success}
+
+    def console_pull_backup(self) -> dict:
+        if not self._console:
+            return {"ok": False, "error": "Console disconnected"}
+
+        folder = self._window.create_file_dialog(webview.FileDialog.FOLDER)
+        if not folder:
+            return {"ok": False, "error": "No destination selected"}
+        folder = folder[0] if isinstance(folder, (list, tuple)) else str(folder)
+
+        import shutil
+        import time
+
+        rz_bin = resource_path(os.path.join("vendor", f"rz{'.exe' if sys.platform == 'win32' else ''}"))
+        if not os.path.exists(rz_bin):
+            rz_bin = shutil.which("rz")
+            if not rz_bin:
+                return {
+                    "ok": False,
+                    "error": "ZMODEM 'rz' binary not found on host system. Install lrzsz.",
+                }
+
+        # Use the newly added --backup-only flag
+        self._console.write(
+            "factory-reset --backup-only /tmp/smhub_backup.tar.xz && sz /tmp/smhub_backup.tar.xz\r"
+        )
+        time.sleep(
+            2.0
+        )  # Give the script some time to generate the backup before catching
+        success = self._console.run_zmodem([rz_bin, "-vv", "-b", "-e"], cwd=folder)
+        return {"ok": success}
+
 
 def _js_safe(obj: dict) -> str:
     import json
@@ -371,6 +518,7 @@ def _hook_dpi_nudge(window: webview.Window) -> None:
     """Nudge window size on DPI change to force a WebKit repaint on Linux/NVIDIA."""
     try:
         import gi
+
         gi.require_version("Gtk", "3.0")
         from gi.repository import GLib  # type: ignore[import-untyped]
         from webview.platforms.gtk import BrowserView  # type: ignore[import-untyped]
@@ -387,6 +535,7 @@ def _hook_dpi_nudge(window: webview.Window) -> None:
                     gtk_win.resize(w + 1, h)
                     GLib.idle_add(gtk_win.resize, w, h)
                     return False
+
                 for delay in (50, 200, 500, 1000):
                     GLib.timeout_add(delay, _nudge)
 
@@ -399,6 +548,20 @@ def _hook_dpi_nudge(window: webview.Window) -> None:
 
 
 def main() -> None:
+    if sys.platform == "linux":
+        os.environ.setdefault("GIO_USE_VFS", "local")
+        try:
+            import gi
+
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk  # type: ignore[import-not-found]
+
+            settings = Gtk.Settings.get_default()
+            if settings:
+                settings.set_property("gtk-application-prefer-dark-theme", True)
+        except Exception:
+            pass
+
     api = Api()
     window = webview.create_window(
         title="SMHUB Flasher",
@@ -438,8 +601,14 @@ def main() -> None:
                 api._downloader.cleanup()
         except Exception:
             pass
+        try:
+            if api._console:
+                api._console.disconnect()
+        except Exception:
+            pass
 
         import time
+
         # Workaround for PyInstaller + PyWebView on Windows:
         # Give the Edge Chromium (WebView2) subprocesses a moment to fully terminate
         # and release locks on WebView2Loader.dll inside the _MEI temporary directory.
@@ -452,12 +621,13 @@ if __name__ == "__main__":
     # to ensure the USB interface isn't locked before we even start.
     try:
         import subprocess
+
         if sys.platform == "win32":
             subprocess.run(
                 ["taskkill", "/F", "/IM", "fastboot.exe"],
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
             )
     except Exception:
         pass

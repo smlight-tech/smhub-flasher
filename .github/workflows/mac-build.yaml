@@ -57,6 +57,15 @@ jobs:
           rm -rf "vendor/_pt" "vendor/platform-tools.zip"
           echo "fastboot downloaded: $(wc -c < vendor/fastboot | tr -d ' ') bytes"
 
+      - name: Install lrzsz (ZMODEM) via Homebrew
+        run: |
+          brew install lrzsz
+          mkdir -p vendor
+          cp $(brew --prefix lrzsz)/bin/rz vendor/rz
+          cp $(brew --prefix lrzsz)/bin/sz vendor/sz
+          chmod +x vendor/rz vendor/sz
+          echo "ZMODEM binaries copied from Homebrew"
+
       - name: Build with PyInstaller
         run: |
           repoRoot=$(cd .. && pwd)
@@ -70,6 +79,8 @@ jobs:
             --windowed \
             --icon "$repoRoot/png/icon.png" \
             --add-data "web:web" \
+            --add-data "vendor/rz:vendor" \
+            --add-data "vendor/sz:vendor" \
             --add-data "vendor/fastboot:smhub_flasher" \
             --add-data "$flasherPkg:smhub_flasher" \
             --hidden-import "usb.backend.libusb1" \

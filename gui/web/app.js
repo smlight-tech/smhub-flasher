@@ -38,7 +38,7 @@ const flashUI = {
   },
 
   setPhase(phaseName) {
-    const steps = document.querySelectorAll(".step");
+    const steps = document.querySelectorAll(".step-node");
     let reached = false;
     steps.forEach((el) => {
       el.classList.remove("active", "done");
@@ -52,20 +52,21 @@ const flashUI = {
   },
 
   markAllStepsDone() {
-    document.querySelectorAll(".step").forEach((el) => {
+    document.querySelectorAll(".step-node").forEach((el) => {
       el.classList.remove("active");
       el.classList.add("done");
     });
   },
 
   resetSteps() {
-    document.querySelectorAll(".step").forEach((s) => s.classList.remove("active", "done"));
+    document.querySelectorAll(".step-node").forEach((s) => s.classList.remove("active", "done"));
     $("progress-bar").style.transform = "scaleX(0)";
     $("progress-bar").classList.remove("success");
     $("progress-text").textContent = "Idle";
     $("timer").textContent = "00:00";
     $("log").textContent = "";
     progress.reset();
+    refreshStepNumbers();
   },
 };
 
@@ -333,12 +334,51 @@ window.onFlasherEvent = function (evt) {
 // --- Mode switching ---
 function switchMode(mode) {
   currentMode = mode;
+  document.body.classList.toggle("console-active", mode === "console");
   document.querySelectorAll(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.mode === mode);
   });
   $("panel-online").classList.toggle("hidden", mode !== "online");
   $("panel-local").classList.toggle("hidden", mode !== "local");
+  $("panel-console").classList.toggle("hidden", mode !== "console");
+  $("panel-flashing-controls").classList.toggle("hidden", mode === "console");
+
+  if (mode === "console") {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.resize_window) {
+      window.pywebview.api.resize_window(900, 720);
+    }
+    initTerminal();
+    setTimeout(() => fitAddon.fit(), 0);
+  } else {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.set_log_expanded) {
+      const logDetails = document.querySelector(".log-details");
+      window.pywebview.api.set_log_expanded(logDetails ? logDetails.open : false);
+    }
+    // Clean up resource contention if navigating away
+    const btn = $("btn-console-connect");
+    if (btn && btn.textContent === "Disconnect") {
+      btn.click(); // Auto-disconnect
+    }
+  }
+
   refreshStartButton();
+  refreshStepNumbers();
+}
+
+function refreshStepNumbers() {
+  const isOnline = currentMode === "online";
+  const downloadNode = $("step-download");
+  if (downloadNode) {
+    downloadNode.classList.toggle("hidden", !isOnline);
+  }
+
+  const nodes = document.querySelectorAll(".step-node:not(.hidden)");
+  nodes.forEach((node, index) => {
+    const circle = node.querySelector(".node-circle");
+    if (circle) {
+      circle.textContent = index + 1;
+    }
+  });
 }
 
 function refreshStartButton() {
@@ -641,7 +681,11 @@ async function init() {
     $("btn-cancel").disabled = false;
     flashUI.setStatus("Running", "running");
     // Light up the step-1 indicator immediately so the UI feels responsive.
-    flashUI.setPhase("BootROM Detection");
+    if (currentMode === "online") {
+      flashUI.setPhase("Download");
+    } else {
+      flashUI.setPhase("BootROM Detection");
+    }
     let res;
     if (currentMode === "online") {
       const channel = $("online-channel").value;
@@ -694,6 +738,175 @@ async function init() {
   });
 
   switchMode("online");
+}
+
+// --- Recovery Console ---
+let terminal = null;
+let fitAddon = null;
+
+function initTerminal() {
+  if (terminal) return;
+  terminal = new window.Terminal({
+    cursorBlink: true,
+    minimumContrastRatio: 4.5,
+    theme: {
+      background: '#0a0b0d',
+      foreground: '#e7ecf3',
+      cursor: '#4f8cff',
+      cursorAccent: '#0a0b0d',
+      selectionBackground: 'rgba(79, 140, 255, 0.3)',
+      black: '#353a48',
+      red: '#ff5c5c',
+      green: '#4cd964',
+      yellow: '#f0b84c',
+      blue: '#61afef',
+      magenta: '#c578ff',
+      cyan: '#4cd5db',
+      white: '#e7ecf3',
+      brightBlack: '#8b93a5',
+      brightRed: '#ff6e6e',
+      brightGreen: '#6be57c',
+      brightYellow: '#ffd573',
+      brightBlue: '#6aa0ff',
+      brightMagenta: '#d399ff',
+      brightCyan: '#6be8ed',
+      brightWhite: '#ffffff'
+    },
+    fontFamily: 'monospace',
+    fontSize: 12,
+    lineHeight: 1.2,
+  });
+  fitAddon = new window.FitAddon.FitAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.open($("terminal-container"));
+  fitAddon.fit();
+
+  terminal.onData((data) => {
+    if (window.pywebview && window.pywebview.api) {
+      window.pywebview.api.write_console(data);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (currentMode === "console") {
+      fitAddon.fit();
+    }
+  });
+
+  // Enable mouse copy/paste (Linux style)
+  terminal.onSelectionChange(() => {
+    if (terminal.hasSelection()) {
+      navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
+    }
+  });
+
+  terminal.element.addEventListener("contextmenu", async (e) => {
+    e.preventDefault();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        window.pywebview.api.write_console(text);
+      }
+    } catch (err) {
+      console.warn("Clipboard paste failed", err);
+    }
+  });
+}
+
+window.writeTerminalData = function(data) {
+  if (terminal) terminal.write(data);
+};
+
+window.setConsoleStatus = function(status, color) {
+  const el = $("console-status");
+  el.textContent = status;
+  el.style.color = color || "#aaa";
+
+  const dot = $("console-status-dot");
+  if (dot) {
+    dot.className = "console-status-dot";
+    if (status === "Connected") {
+      dot.classList.add("connected");
+    } else if (status === "Connecting...") {
+      dot.classList.add("connecting");
+    } else {
+      dot.classList.add("disconnected");
+    }
+  }
+
+  const isConnected = status === "Connected";
+  const pushBtn = $("btn-file-push");
+  if (pushBtn) pushBtn.disabled = !isConnected;
+  const logsBtn = $("btn-pull-logs");
+  if (logsBtn) logsBtn.disabled = !isConnected;
+  const backupBtn = $("btn-pull-backup");
+  if (backupBtn) backupBtn.disabled = !isConnected;
+};
+
+$("btn-console-connect").addEventListener("click", async () => {
+  const btn = $("btn-console-connect");
+  if (btn.textContent === "Connect") {
+    btn.disabled = true;
+    window.setConsoleStatus("Connecting...", "#aaa");
+    try {
+      const res = await window.pywebview.api.open_console();
+      btn.disabled = false;
+      if (res.ok) {
+        btn.textContent = "Disconnect";
+        window.setConsoleStatus("Connected", "#0f0");
+        if (terminal) terminal.focus();
+      } else {
+        window.setConsoleStatus("Failed: " + res.error, "#f00");
+      }
+    } catch (e) {
+      btn.disabled = false;
+      window.setConsoleStatus("Error: " + e, "#f00");
+    }
+  } else {
+    btn.disabled = true;
+    try {
+      await window.pywebview.api.close_console();
+    } catch (e) { /* ignore */ }
+    btn.disabled = false;
+    btn.textContent = "Connect";
+    window.setConsoleStatus("Disconnected", "#aaa");
+  }
+});
+
+const btnPush = $("btn-file-push");
+if (btnPush) {
+  btnPush.addEventListener("click", async () => {
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.console_push_file();
+      if (!res.ok && res.error && res.error !== "No file selected") {
+        alert("Push File failed: " + res.error);
+      }
+    }
+  });
+}
+
+const btnPullLogs = $("btn-pull-logs");
+if (btnPullLogs) {
+  btnPullLogs.addEventListener("click", async () => {
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.console_pull_logs();
+      if (!res.ok && res.error && res.error !== "No destination selected") {
+        alert("Get Logs failed: " + res.error);
+      }
+    }
+  });
+}
+
+const btnPullBackup = $("btn-pull-backup");
+if (btnPullBackup) {
+  btnPullBackup.addEventListener("click", async () => {
+    if (window.pywebview && window.pywebview.api) {
+      const res = await window.pywebview.api.console_pull_backup();
+      if (!res.ok && res.error && res.error !== "No destination selected") {
+        alert("Get Backup failed: " + res.error);
+      }
+    }
+  });
 }
 
 window.addEventListener("pywebviewready", init);

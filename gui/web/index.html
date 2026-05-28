@@ -7,7 +7,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
   <title>SMHUB Flasher</title>
+  <link rel="stylesheet" href="xterm.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -48,6 +50,7 @@ sudo udevadm trigger</pre>
       <div class="tabs">
         <button class="tab active" data-mode="online" type="button">Online firmware</button>
         <button class="tab" data-mode="local" type="button">Local folder</button>
+        <button class="tab" data-mode="console" type="button">Recovery Console</button>
       </div>
 
       <!-- Online mode panel -->
@@ -92,42 +95,89 @@ sudo udevadm trigger</pre>
         </div>
       </div>
 
-      <div class="stepper">
-        <div class="step" data-phase="BootROM Detection">1. Detect device</div>
-        <div class="step" data-phase="BootROM Handshake">2. Handshake</div>
-        <div class="step" data-phase="U-Boot Load">3. Load U-Boot</div>
-        <div class="step" data-phase="eMMC Flash">4. Flash eMMC</div>
-        <div class="step" data-phase="Done">5. Done</div>
+      <!-- Console panel -->
+      <div id="panel-console" class="panel hidden" style="flex: 1; display: flex; flex-direction: column;">
+        <p style="margin: 0 0 10px 0; color: var(--muted); font-size: 13px; line-height: 1.4;">
+          Connect over USB to access the raw serial recovery console. Use this to rescue devices, pull backups, or perform manual diagnostics.
+        </p>
+        <div class="console-panel">
+          <div class="console-toolbar">
+            <div class="console-status-group">
+              <span class="console-status-dot disconnected" id="console-status-dot"></span>
+              <span id="console-status" class="console-status">Disconnected</span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button id="btn-file-push" type="button" class="console-btn" disabled>Upload file</button>
+              <button id="btn-pull-logs" type="button" class="console-btn" disabled>Get Logs</button>
+              <button id="btn-pull-backup" type="button" class="console-btn" disabled>Get Backup</button>
+              <button id="btn-console-connect" type="button" class="console-btn">Connect</button>
+            </div>
+          </div>
+          <div id="terminal-container" class="console-terminal"></div>
+        </div>
+        <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 12px; font-style: italic;">
+          * Note: The SMHUB must be in USB "Device" mode (the factory default).
+        </p>
       </div>
 
-      <div class="field">
-        <div class="progress-wrap">
-          <div id="progress-bar" class="progress-bar"></div>
-        </div>
-        <div class="progress-row">
-          <div id="progress-text" class="hint">Idle</div>
-          <div class="timer-group">
-            <span id="timer" class="hint timer">00:00</span>
-            <span id="eta" class="hint eta hidden"></span>
+      <div id="panel-flashing-controls">
+        <div class="stepper-pipeline">
+          <div class="stepper-progress-line"></div>
+          <div class="step-node hidden" id="step-download" data-phase="Download">
+            <div class="node-circle">1</div>
+            <span class="node-label">Download</span>
+          </div>
+          <div class="step-node" data-phase="BootROM Detection">
+            <div class="node-circle">1</div>
+            <span class="node-label">Detect device</span>
+          </div>
+          <div class="step-node" data-phase="BootROM Handshake">
+            <div class="node-circle">2</div>
+            <span class="node-label">Handshake</span>
+          </div>
+          <div class="step-node" data-phase="U-Boot Load">
+            <div class="node-circle">3</div>
+            <span class="node-label">Load U-Boot</span>
+          </div>
+          <div class="step-node" data-phase="eMMC Flash">
+            <div class="node-circle">4</div>
+            <span class="node-label">Flash eMMC</span>
+          </div>
+          <div class="step-node" data-phase="Done">
+            <div class="node-circle">5</div>
+            <span class="node-label">Done</span>
           </div>
         </div>
-      </div>
 
-      <div class="row">
-        <button id="btn-start" class="primary" disabled>Start flashing</button>
-        <button id="btn-cancel" disabled>Cancel</button>
-      </div>
+        <div class="field">
+          <div class="progress-wrap">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+          <div class="progress-row">
+            <div id="progress-text" class="hint">Idle</div>
+            <div class="timer-group">
+              <span id="timer" class="hint timer">00:00</span>
+              <span id="eta" class="hint eta hidden"></span>
+            </div>
+          </div>
+        </div>
 
-      <details class="log-details">
-        <summary>
-          Log output
-          <span class="log-actions">
-            <button id="btn-copy-log" type="button">Copy</button>
-            <button id="btn-clear-log" type="button">Clear</button>
-          </span>
-        </summary>
-        <pre id="log" tabindex="0"></pre>
-      </details>
+        <div class="row">
+          <button id="btn-start" class="primary" disabled>Start flashing</button>
+          <button id="btn-cancel" disabled>Cancel</button>
+        </div>
+
+        <details class="log-details">
+          <summary>
+            Log output
+            <span class="log-actions">
+              <button id="btn-copy-log" type="button">Copy</button>
+              <button id="btn-clear-log" type="button">Clear</button>
+            </span>
+          </summary>
+          <pre id="log" tabindex="0"></pre>
+        </details>
+      </div>
     </section>
   </main>
 
@@ -148,7 +198,9 @@ sudo udevadm trigger</pre>
     <span>© 2026 SMLIGHT · GPLv3</span>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="marked.min.js"></script>
+  <script src="xterm.js"></script>
+  <script src="xterm-addon-fit.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
