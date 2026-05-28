@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 import codecs
@@ -40,9 +41,12 @@ class SerialConsole:
             raise RuntimeError(
                 "Could not automatically discover SMHUB serial port. Make sure the device is fully booted."
             )
+        exclusive = False
+        if sys.platform == "win32":
+            exclusive = True
 
         self.port = serial.Serial(
-            port_name, baudrate=115200, timeout=1.0, exclusive=False
+            port_name, baudrate=115200, timeout=1.0, exclusive=exclusive
         )
         self._auto_login()
         self._stop_event.clear()
