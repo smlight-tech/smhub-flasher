@@ -122,6 +122,7 @@ For developers and power users, the flasher contains several advanced capabiliti
 ## 🔧 Troubleshooting
 - **Permission Denied / USBError**: If it immediately crashes claiming it has no access, your Linux user permissions aren't set correctly. Ensure you followed the **First-Time Setup** completely and have logged out/in.
 - **I want to see what is failing**: Add the `-v` flag to the end of your command for verbose output (including standard Fastboot activity logs). For deeper debugging, use the `-vv` flag instead, which dumps the raw hexadecimal USB traffic onto the screen so developers can see what the hardware is complaining about at the transport layer.
+- **Linux gui app not launching**: If you're running wayland, try forcing flatpack to run this app in X11 mode using apps like flatseal or via command: `flatpak run --branch=master --arch=x86_64 --socket=x11 --nosocket=wayland --command=smhub-flasher-gui tech.smlight.SMHUBFlasher`
 
 ---
 
