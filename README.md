@@ -4,11 +4,22 @@ A simple, automated tool for flashing and recovering the SMHUB operating system 
 
 Whether you are getting a fresh start or recovering a completely unbootable hub, this tool handles the entire process for you automatically.
 
-## 🖥️ 1. Graphical Interface (GUI)
+## 🖥️ 1. Graphical Interface (GUI) - Recommended
 
-We offer a standalone graphical flasher for Windows, macOS, and Linux. Please download it from the [Releases page](https://github.com/smlight-tech/smhub-flasher/releases). The GUI provides a native, click-to-flash experience without requiring terminal commands or manual environment setups.
+For most users, we highly recommend our standalone graphical flasher. It is supported on **Windows, macOS, and Linux**. 
 
-> **Note:** The macOS GUI build is currently a work-in-progress and will be released soon!
+You can download the latest installer directly from the [Releases page](https://github.com/smlight-tech/smhub-flasher/releases). The GUI provides a native, one-click experience without requiring terminal commands, python dependencies, or manual environment setups.
+
+### Key GUI Features
+*   **One-Click Flashing:** Automatically downloads, verifies, and flashes the latest stable/beta firmware, or allows you to select a local directory.
+*   **Automated Driver Setup:** On **Windows**, it automatically prompts to install and bind the required WinUSB driver under User Account Control (UAC) if missing.
+*   **Real-time Output:** Provides live status tracking, progress indicators, and visual logs throughout the flashing cycle.
+*   **🔌 USB-to-Serial Recovery Console:** Provides direct command-line access from within the flasher app for recovery and diagnostics if device won't fully boot:
+    *   **Auto-Discovery:** Automatically scans COM ports / USB TTY nodes to locate the SMHUB runtime composite serial interface.
+    *   **Auto-Login:** Automatically logs into the board shell using default credentials (only works if still using the default password).
+    *   **📤 Upload Files:** Push any local file from your computer directly into the active directory of the SMHUB filesystem via ZMODEM.
+    *   **📋 Download Logs (One-Click):** Compress all system logs from `/var/log` and automatically transfer them to a folder of your choice on your host.
+    *   **💾 Download Backups (One-Click):** Packages active and user configuration and transfers the full backup archive securely back to your PC.
 
 ---
 
