@@ -63,9 +63,8 @@ class PollingUsbMonitor:
         return seen
 
     def _run(self) -> None:
-        prev = self._snapshot()
+        prev: set[tuple[int, int, int, int]] = set()
         while not self._stop.is_set():
-            time.sleep(self._interval)
             curr = self._snapshot()
             for key in curr - prev:
                 vid, pid, _bus, _addr = key
@@ -80,6 +79,7 @@ class PollingUsbMonitor:
                     self.event_queue.put_nowait, ("remove", vid, pid, "")
                 )
             prev = curr
+            time.sleep(self._interval)
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -99,14 +99,6 @@ class PollingUsbMonitor:
         pid: int | None = None,
     ) -> tuple[str, int, int, str]:
         while True:
-            if "add" in actions:
-                for e_vid, e_pid, _bus, _addr in self._snapshot():
-                    if vid is not None and e_vid != vid:
-                        continue
-                    if pid is not None and e_pid != pid:
-                        continue
-                    return "add", e_vid, e_pid, ""
-
             action, e_vid, e_pid, node = await self.event_queue.get()
             if action not in actions:
                 continue
