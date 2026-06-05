@@ -179,6 +179,8 @@ class FlasherFSM:
                         logger.debug(
                             f"BootROM re-enumerated after first magic: {vid:04x}:{pid:04x}"
                         )
+                        if sys.platform in ("win32", "darwin"):
+                            await asyncio.sleep(0.5)
                         self.transport = UsbTransport(vid, pid)
                         await self.transport.connect()
                         continue
@@ -221,6 +223,8 @@ class FlasherFSM:
                         vid, pid = await asyncio.wait_for(
                             self._wait_for_usb_device(ROM_IDS), timeout=5.0
                         )
+                        if sys.platform in ("win32", "darwin"):
+                            await asyncio.sleep(0.5)
                         self.transport = UsbTransport(vid, pid)
                         await self.transport.connect()
                     except TimeoutError:
@@ -496,6 +500,8 @@ class FlasherFSM:
             logger.debug(
                 f"U-Boot re-enumerated ({vid:04x}:{pid:04x}), starting EMMC streaming..."
             )
+            if sys.platform in ("win32", "darwin"):
+                await asyncio.sleep(0.5)
             self.transport = UsbTransport(vid, pid)
             await self.transport.connect()
             await asyncio.sleep(0.5)
