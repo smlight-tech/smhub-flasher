@@ -144,7 +144,6 @@ class FlasherFSM:
 
         for attempt in range(3):
             try:
-                await asyncio.sleep(0.5)
                 transport = UsbTransport(vid, pid)
                 await transport.connect()
                 return transport
