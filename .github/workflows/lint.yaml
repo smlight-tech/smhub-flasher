@@ -30,7 +30,6 @@ jobs:
       - run: uvx prek run --all-files
   test:
     runs-on: ubuntu-latest
-    if: false # Skip tests - non written yet
     needs: lint
     steps:
       - name: Checkout
