@@ -251,42 +251,8 @@ class FlasherFSM:
             "In Stage 2 ROM shell, repeating handshake for dynamically requested FIP chunks"
         )
 
-        magic_size = os.path.getsize(self.magic_path)
-        try:
-            await self.transport.send_file_chunked(
-                self.magic_path,
-                DUMMY_ADDR,
-                is_magic=True,
-                chunk_size=magic_size + 8,
-            )
-        except Exception as e:
-            logger.debug(f"Stage 2 magic transfer interrupted; retrying wait: {e}")
-            self.transport.close()
-            spinner.cancel()
-            await asyncio.gather(spinner, return_exceptions=True)
-            self.state = "WAIT_UBOOT"
-            return
-
-        ret = self.transport.last_ack_packet
-        if ret and len(ret) >= 16:
-            self.fip_tx_offset = (
-                ret[8] * (2**24) + ret[9] * (2**16) + ret[10] * (2**8) + ret[11]
-            )
-            self.fip_tx_size = (
-                ret[12] * (2**24) + ret[13] * (2**16) + ret[14] * (2**8) + ret[15]
-            )
-            logger.debug(
-                f"Stage 2 bounds -> offset: {self.fip_tx_offset}, size: {self.fip_tx_size}"
-            )
-        else:
-            logger.debug(
-                "No FIP offsets provided by ROM, using entire file size fallback."
-            )
-            self.fip_tx_offset = 0
-            self.fip_tx_size = os.path.getsize(self.fip_path)
-
-        fip_req_size = self.fip_tx_size
-        fip_req_offset = self.fip_tx_offset
+        fip_req_offset = 0
+        fip_req_size = 0
 
         def _fip_progress(done: int, total_size: int) -> None:
             if os.environ.get("COLORAMA_DISABLE") == "1" or logger.isEnabledFor(
@@ -310,8 +276,35 @@ class FlasherFSM:
                         label="U-Boot FIP",
                     )
 
+        magic_size = os.path.getsize(self.magic_path)
         total_fip = os.path.getsize(self.fip_path)
         try:
+            await self.transport.send_file_chunked(
+                self.magic_path,
+                DUMMY_ADDR,
+                is_magic=True,
+                chunk_size=magic_size + 8,
+            )
+
+            ret = self.transport.last_ack_packet
+            if not ret or len(ret) < 16:
+                raise RuntimeError(
+                    "Invalid or missing FIP offsets in Stage 2 BootROM response"
+                )
+
+            self.fip_tx_offset = (
+                ret[8] * (2**24) + ret[9] * (2**16) + ret[10] * (2**8) + ret[11]
+            )
+            self.fip_tx_size = (
+                ret[12] * (2**24) + ret[13] * (2**16) + ret[14] * (2**8) + ret[15]
+            )
+            logger.debug(
+                f"Stage 2 bounds -> offset: {self.fip_tx_offset}, size: {self.fip_tx_size}"
+            )
+
+            fip_req_size = self.fip_tx_size
+            fip_req_offset = self.fip_tx_offset
+
             await self.transport.send_file_chunked(
                 self.fip_path,
                 0,
