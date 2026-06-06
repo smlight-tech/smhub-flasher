@@ -133,6 +133,31 @@ class FlasherFSM:
             if (e_vid, e_pid) in ids:
                 return e_vid, e_pid
 
+    async def _connect_transport(
+        self, vid: int, pid: int, *wait_ids: tuple[int, int]
+    ) -> UsbTransport:
+        """Connect to the device, retrying detection and connection on failure."""
+        if sys.platform not in ("win32", "darwin"):
+            transport = UsbTransport(vid, pid)
+            await transport.connect()
+            return transport
+
+        for attempt in range(3):
+            try:
+                await asyncio.sleep(0.5)
+                transport = UsbTransport(vid, pid)
+                await transport.connect()
+                return transport
+            except RuntimeError as e:
+                if "not found by pyusb" in str(e) and attempt < 2:
+                    logger.warning(
+                        f"  [yellow]⚠[/yellow] USB connection failed ({e}). Retrying detection..."
+                    )
+                    vid, pid = await self._wait_for_usb_device(*wait_ids)
+                else:
+                    raise
+        raise RuntimeError("Unreachable")
+
     async def _state_wait_rom(self) -> None:
         _section("BootROM Detection")
         spinner = asyncio.create_task(
@@ -142,8 +167,7 @@ class FlasherFSM:
         spinner.cancel()
         await asyncio.gather(spinner, return_exceptions=True)
         _ok(f"BootROM detected ({vid:04x}:{pid:04x})")
-        self.transport = UsbTransport(vid, pid)
-        await self.transport.connect()
+        self.transport = await self._connect_transport(vid, pid, ROM_IDS)
         self.state = "ROM_HANDSHAKE"
 
     async def _state_rom_handshake(self) -> None:
@@ -241,10 +265,7 @@ class FlasherFSM:
         vid, pid = await self._wait_for_usb_device(ROM_IDS)
         logger.debug(f"Detected next stage device: {vid:04x}:{pid:04x}")
 
-        if sys.platform in ("win32", "darwin"):
-            await asyncio.sleep(0.5)
-        self.transport = UsbTransport(vid, pid)
-        await self.transport.connect()
+        self.transport = await self._connect_transport(vid, pid, ROM_IDS)
         await asyncio.sleep(0.5)
 
         logger.debug(
@@ -360,9 +381,7 @@ class FlasherFSM:
         spinner.cancel()
         await asyncio.gather(spinner, return_exceptions=True)
         _ok(f"U-Boot interface connected ({vid:04x}:{pid:04x})")
-        await asyncio.sleep(0.5)
-        self.transport = UsbTransport(vid, pid)
-        await self.transport.connect()
+        self.transport = await self._connect_transport(vid, pid, ROM_IDS)
         self.state = "FLASH_EMMC"
 
     async def _state_wait_fastboot_connection(self) -> None:
@@ -493,10 +512,7 @@ class FlasherFSM:
             logger.debug(
                 f"U-Boot re-enumerated ({vid:04x}:{pid:04x}), starting EMMC streaming..."
             )
-            if sys.platform in ("win32", "darwin"):
-                await asyncio.sleep(0.5)
-            self.transport = UsbTransport(vid, pid)
-            await self.transport.connect()
+            self.transport = await self._connect_transport(vid, pid, ROM_IDS)
             await asyncio.sleep(0.5)
 
             recvbuf = await self._send_cvi_update_query()
