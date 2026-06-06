@@ -28,7 +28,7 @@ async def test_polling_event_cycle() -> None:
 
     # Step 1: Device is connected initially
     dev = MockUsbDevice(0x3346, 0x1000, 1, 1)
-    
+
     with patch("usb.core.find") as mock_find:
         mock_find.return_value = [dev]
 
