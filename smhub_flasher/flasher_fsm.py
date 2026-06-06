@@ -350,7 +350,8 @@ class FlasherFSM:
             self.transport.close()
             spinner.cancel()
             await asyncio.gather(spinner, return_exceptions=True)
-            self.state = "WAIT_UBOOT"
+            _err("U-Boot FIP upload failed — retrying from BootROM detection")
+            self.state = "WAIT_ROM"
             return
 
         self.transport.close()
