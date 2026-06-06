@@ -11,6 +11,7 @@ import time
 from typing import Protocol
 
 import usb.core
+import usb.util
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class PollingUsbMonitor:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._interval = 0.2
+        self._verified_devices: set[tuple[int, int, int, int]] = set()
 
     def _snapshot(self) -> set[tuple[int, int, int, int]]:
         seen: set[tuple[int, int, int, int]] = set()
@@ -50,14 +52,32 @@ class PollingUsbMonitor:
                 vid = dev.idVendor
                 pid = dev.idProduct
                 if vid in self.target_vids and pid in self.target_pids:
+                    key = (vid, pid, dev.bus, dev.address)
                     # Windows Plug-and-Play is slow to bind the WinUSB driver.
                     # Do not emit the device until the descriptors are actually readable.
                     if sys.platform == "win32":
-                        try:
-                            _ = dev[0]
-                        except usb.core.USBError:
+                        if key in self._verified_devices:
+                            seen.add(key)
+                            usb.util.dispose_resources(dev)
                             continue
-                    seen.add((vid, pid, dev.bus, dev.address))
+
+                        readable = False
+                        for attempt in range(6):
+                            try:
+                                _ = dev[0]
+                                readable = True
+                                break
+                            except usb.core.USBError:
+                                if attempt < 5:
+                                    time.sleep(0.1)
+                        if not readable:
+                            usb.util.dispose_resources(dev)
+                            continue
+                        self._verified_devices.add(key)
+                    seen.add(key)
+                usb.util.dispose_resources(dev)
+            if sys.platform == "win32":
+                self._verified_devices &= seen
         except Exception as e:
             logger.error(f"USB poll error: {e}")
         return seen
