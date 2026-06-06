@@ -382,6 +382,8 @@ class UsbTransport:
         """Sends a file over USB in chunks"""
 
         def run_sender() -> int:
+            import time
+
             with open(file_path, "rb") as f:
                 f.seek(start_offset)
                 bytes_sent = 0
@@ -400,16 +402,26 @@ class UsbTransport:
                     if not buf:
                         break
 
-                    ret = self._send_chunk_sync(
-                        buf,
-                        addr,
-                        is_magic=is_magic,
-                        timeout=5000,
-                    )
-
-                    if ret != SUCCESS:
+                    max_retries = 3
+                    for attempt in range(max_retries + 1):
+                        ret = self._send_chunk_sync(
+                            buf,
+                            addr,
+                            is_magic=is_magic,
+                            timeout=5000,
+                        )
+                        if ret == SUCCESS:
+                            break
+                        if attempt < max_retries:
+                            logger.warning(
+                                f"Failed to send chunk at address {addr:08x} "
+                                f"(attempt {attempt + 1}/{max_retries + 1}). "
+                                "Retrying in 100ms..."
+                            )
+                            time.sleep(0.1)
+                    else:
                         raise RuntimeError(
-                            f"Failed to send chunk at address {addr:08x}"
+                            f"Failed to send chunk at address {addr:08x} after {max_retries + 1} attempts."
                         )
 
                     addr += len(buf)
