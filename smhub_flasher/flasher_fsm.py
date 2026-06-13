@@ -133,6 +133,30 @@ class FlasherFSM:
             if (e_vid, e_pid) in ids:
                 return e_vid, e_pid
 
+    async def _connect_transport(
+        self, vid: int, pid: int, *wait_ids: tuple[int, int]
+    ) -> UsbTransport:
+        """Connect to the device, retrying detection and connection on failure."""
+        if sys.platform not in ("win32", "darwin"):
+            transport = UsbTransport(vid, pid)
+            await transport.connect()
+            return transport
+
+        for attempt in range(3):
+            try:
+                transport = UsbTransport(vid, pid)
+                await transport.connect()
+                return transport
+            except RuntimeError as e:
+                if "not found by pyusb" in str(e) and attempt < 2:
+                    logger.warning(
+                        f"  [yellow]⚠[/yellow] USB connection failed ({e}). Retrying detection..."
+                    )
+                    vid, pid = await self._wait_for_usb_device(*wait_ids)
+                else:
+                    raise
+        raise RuntimeError("Unreachable")
+
     async def _state_wait_rom(self) -> None:
         _section("BootROM Detection")
         spinner = asyncio.create_task(
@@ -142,8 +166,7 @@ class FlasherFSM:
         spinner.cancel()
         await asyncio.gather(spinner, return_exceptions=True)
         _ok(f"BootROM detected ({vid:04x}:{pid:04x})")
-        self.transport = UsbTransport(vid, pid)
-        await self.transport.connect()
+        self.transport = await self._connect_transport(vid, pid, ROM_IDS)
         self.state = "ROM_HANDSHAKE"
 
     async def _state_rom_handshake(self) -> None:
@@ -179,6 +202,8 @@ class FlasherFSM:
                         logger.debug(
                             f"BootROM re-enumerated after first magic: {vid:04x}:{pid:04x}"
                         )
+                        if sys.platform in ("win32", "darwin"):
+                            await asyncio.sleep(0.5)
                         self.transport = UsbTransport(vid, pid)
                         await self.transport.connect()
                         continue
@@ -221,6 +246,8 @@ class FlasherFSM:
                         vid, pid = await asyncio.wait_for(
                             self._wait_for_usb_device(ROM_IDS), timeout=5.0
                         )
+                        if sys.platform in ("win32", "darwin"):
+                            await asyncio.sleep(0.5)
                         self.transport = UsbTransport(vid, pid)
                         await self.transport.connect()
                     except TimeoutError:
@@ -234,149 +261,119 @@ class FlasherFSM:
 
     async def _state_wait_uboot(self) -> None:
         spinner = asyncio.create_task(_spin("Loading U-Boot FIP into DRAM..."))
-        vid, pid = await self._wait_for_usb_device(ROM_IDS, FASTBOOT_IDS)
+        vid, pid = await self._wait_for_usb_device(ROM_IDS)
         logger.debug(f"Detected next stage device: {vid:04x}:{pid:04x}")
 
-        if (vid, pid) == FASTBOOT_IDS:
-            # If Fastboot is spotted natively here in wait uboot, skip to fastboot flash
-            spinner.cancel()
-            await asyncio.gather(spinner, return_exceptions=True)
-            _ok(f"U-Boot re-enumerated natively in Fastboot mode ({vid:04x}:{pid:04x})")
-            if not self.fastboot_mode:
-                logger.warning(
-                    "  [yellow]⚠[/yellow] Warning: Device entered Fastboot, but --fastboot was not explicitly requested."
-                )
-            self.state = "FLASH_FASTBOOT"
-            return
+        self.transport = await self._connect_transport(vid, pid, ROM_IDS)
+        await asyncio.sleep(0.5)
 
-        if (vid, pid) == ROM_IDS:
-            self.transport = UsbTransport(vid, pid)
-            await self.transport.connect()
-            await asyncio.sleep(0.5)
+        logger.debug(
+            "In Stage 2 ROM shell, repeating handshake for dynamically requested FIP chunks"
+        )
 
-            logger.debug(
-                "In Stage 2 ROM shell, repeating handshake for dynamically requested FIP chunks"
+        fip_req_offset = 0
+        fip_req_size = 0
+
+        def _fip_progress(done: int, total_size: int) -> None:
+            if os.environ.get("COLORAMA_DISABLE") == "1" or logger.isEnabledFor(
+                logging.DEBUG
+            ):
+                pct = int(100 * done / total_size)
+                logger.debug(f"  ·  U-Boot FIP: {done}/{total_size} bytes ({pct}%)")
+
+                if events.JSON_FD_OBJ is not None:
+
+                    def format_bytes(n_bytes: float) -> str:
+                        if n_bytes < 1024 * 1024:
+                            return f"{n_bytes / 1024:.0f}K"
+                        return f"{n_bytes / 1024 / 1024:.0f}M"
+
+                    events.emit(
+                        type="progress",
+                        percent=pct,
+                        current=format_bytes(done),
+                        total=format_bytes(total_size),
+                        label="U-Boot FIP",
+                    )
+
+        magic_size = os.path.getsize(self.magic_path)
+        total_fip = os.path.getsize(self.fip_path)
+        try:
+            await self.transport.send_file_chunked(
+                self.magic_path,
+                DUMMY_ADDR,
+                is_magic=True,
+                chunk_size=magic_size + 8,
             )
 
-            magic_size = os.path.getsize(self.magic_path)
-            try:
-                await self.transport.send_file_chunked(
-                    self.magic_path,
-                    DUMMY_ADDR,
-                    is_magic=True,
-                    chunk_size=magic_size + 8,
-                )
-            except Exception as e:
-                logger.debug(f"Stage 2 magic transfer interrupted; retrying wait: {e}")
-                self.transport.close()
-                spinner.cancel()
-                await asyncio.gather(spinner, return_exceptions=True)
-                self.state = "WAIT_UBOOT"
-                return
-
             ret = self.transport.last_ack_packet
-            if ret and len(ret) >= 16:
-                self.fip_tx_offset = (
-                    ret[8] * (2**24) + ret[9] * (2**16) + ret[10] * (2**8) + ret[11]
+            if not ret or len(ret) < 16:
+                raise RuntimeError(
+                    "Invalid or missing FIP offsets in Stage 2 BootROM response"
                 )
-                self.fip_tx_size = (
-                    ret[12] * (2**24) + ret[13] * (2**16) + ret[14] * (2**8) + ret[15]
-                )
-                logger.debug(
-                    f"Stage 2 bounds -> offset: {self.fip_tx_offset}, size: {self.fip_tx_size}"
-                )
-            else:
-                logger.debug(
-                    "No FIP offsets provided by ROM, using entire file size fallback."
-                )
-                self.fip_tx_offset = 0
-                self.fip_tx_size = os.path.getsize(self.fip_path)
+
+            self.fip_tx_offset = (
+                ret[8] * (2**24) + ret[9] * (2**16) + ret[10] * (2**8) + ret[11]
+            )
+            self.fip_tx_size = (
+                ret[12] * (2**24) + ret[13] * (2**16) + ret[14] * (2**8) + ret[15]
+            )
+            logger.debug(
+                f"Stage 2 bounds -> offset: {self.fip_tx_offset}, size: {self.fip_tx_size}"
+            )
 
             fip_req_size = self.fip_tx_size
             fip_req_offset = self.fip_tx_offset
 
-            def _fip_progress(done: int, total_size: int) -> None:
-                if os.environ.get("COLORAMA_DISABLE") == "1" or logger.isEnabledFor(
-                    logging.DEBUG
-                ):
-                    pct = int(100 * done / total_size)
-                    logger.debug(f"  ·  U-Boot FIP: {done}/{total_size} bytes ({pct}%)")
-
-                    if events.JSON_FD_OBJ is not None:
-
-                        def format_bytes(n_bytes: float) -> str:
-                            if n_bytes < 1024 * 1024:
-                                return f"{n_bytes / 1024:.0f}K"
-                            return f"{n_bytes / 1024 / 1024:.0f}M"
-
-                        events.emit(
-                            type="progress",
-                            percent=pct,
-                            current=format_bytes(done),
-                            total=format_bytes(total_size),
-                            label="U-Boot FIP",
-                        )
-
-            total_fip = os.path.getsize(self.fip_path)
-            try:
-                await self.transport.send_file_chunked(
-                    self.fip_path,
-                    0,
-                    is_magic=False,
-                    chunk_size=512,
-                    max_bytes=fip_req_size,
-                    start_offset=fip_req_offset,
-                    progress_callback=_fip_progress,
-                    progress_base=fip_req_offset,
-                    progress_total=total_fip,
-                )
-
-                flag = USB_DL_FLAG_NORMAL
-                logger.debug(
-                    "Setting boot flag: 1NGM (required by FSBL / U-Boot Fastboot)"
-                )
-                await self.transport.send_req_data(
-                    CVI_USB_TX_FLAG, 0x0E000004, 12, ack=True, data=flag
-                )
-
-                await self.transport.send_req_data(
-                    CV_USB_BREAK, DUMMY_ADDR, 0, ack=False
-                )
-            except Exception as e:
-                logger.debug(f"Stage 2 transfer interrupted; retrying wait: {e}")
-                self.transport.close()
-                spinner.cancel()
-                await asyncio.gather(spinner, return_exceptions=True)
-                self.state = "WAIT_UBOOT"
-                return
-
-            self.transport.close()
-
-            is_final_chunk = fip_req_offset + fip_req_size >= os.path.getsize(
-                self.fip_path
+            await self.transport.send_file_chunked(
+                self.fip_path,
+                0,
+                is_magic=False,
+                chunk_size=512,
+                max_bytes=fip_req_size,
+                start_offset=fip_req_offset,
+                progress_callback=_fip_progress,
+                progress_base=fip_req_offset,
+                progress_total=total_fip,
             )
 
-            if is_final_chunk:
-                spinner.cancel()
-                await asyncio.gather(spinner, return_exceptions=True)
-                _ok("U-Boot FIP loaded into DRAM")
-                if self.test_bootloader:
-                    _ok("Test bootloader requested. Exiting without flashing.")
-                    self.state = "DONE"
-                    return
-                if self.fastboot_mode:
-                    self.state = "WAIT_FASTBOOT_CONNECTION"
-                else:
-                    self.state = "WAIT_EMMC_CONNECTION"
-            else:
-                # More chunks needed — spinner keeps running into next iteration
-                spinner.cancel()
-                await asyncio.gather(spinner, return_exceptions=True)
-                self.state = "WAIT_UBOOT"
-        else:
+            flag = USB_DL_FLAG_NORMAL
+            logger.debug("Setting boot flag: 1NGM (required by FSBL / U-Boot Fastboot)")
+            await self.transport.send_req_data(
+                CVI_USB_TX_FLAG, 0x0E000004, 12, ack=True, data=flag
+            )
+
+            await self.transport.send_req_data(CV_USB_BREAK, DUMMY_ADDR, 0, ack=False)
+        except Exception as e:
+            logger.debug(f"Stage 2 transfer interrupted; retrying wait: {e}")
+            self.transport.close()
             spinner.cancel()
             await asyncio.gather(spinner, return_exceptions=True)
-            self.state = "FLASH_EMMC"
+            _err("U-Boot FIP upload failed — retrying from BootROM detection")
+            self.state = "WAIT_ROM"
+            return
+
+        self.transport.close()
+
+        is_final_chunk = fip_req_offset + fip_req_size >= os.path.getsize(self.fip_path)
+
+        if is_final_chunk:
+            spinner.cancel()
+            await asyncio.gather(spinner, return_exceptions=True)
+            _ok("U-Boot FIP loaded into DRAM")
+            if self.test_bootloader:
+                _ok("Test bootloader requested. Exiting without flashing.")
+                self.state = "DONE"
+                return
+            if self.fastboot_mode:
+                self.state = "WAIT_FASTBOOT_CONNECTION"
+            else:
+                self.state = "WAIT_EMMC_CONNECTION"
+        else:
+            # More chunks needed — spinner keeps running into next iteration
+            spinner.cancel()
+            await asyncio.gather(spinner, return_exceptions=True)
+            self.state = "WAIT_UBOOT"
 
     async def _state_wait_emmc_connection(self) -> None:
         spinner = asyncio.create_task(_spin("Waiting for U-Boot CVI Listener..."))
@@ -384,9 +381,7 @@ class FlasherFSM:
         spinner.cancel()
         await asyncio.gather(spinner, return_exceptions=True)
         _ok(f"U-Boot interface connected ({vid:04x}:{pid:04x})")
-        await asyncio.sleep(0.5)
-        self.transport = UsbTransport(vid, pid)
-        await self.transport.connect()
+        self.transport = await self._connect_transport(vid, pid, ROM_IDS)
         self.state = "FLASH_EMMC"
 
     async def _state_wait_fastboot_connection(self) -> None:
@@ -517,8 +512,7 @@ class FlasherFSM:
             logger.debug(
                 f"U-Boot re-enumerated ({vid:04x}:{pid:04x}), starting EMMC streaming..."
             )
-            self.transport = UsbTransport(vid, pid)
-            await self.transport.connect()
+            self.transport = await self._connect_transport(vid, pid, ROM_IDS)
             await asyncio.sleep(0.5)
 
             recvbuf = await self._send_cvi_update_query()

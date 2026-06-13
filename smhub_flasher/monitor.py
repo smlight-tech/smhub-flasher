@@ -11,6 +11,7 @@ import time
 from typing import Protocol
 
 import usb.core
+import usb.util
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class PollingUsbMonitor:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._interval = 0.2
+        self._verified_devices: set[tuple[int, int, int, int]] = set()
 
     def _snapshot(self) -> set[tuple[int, int, int, int]]:
         seen: set[tuple[int, int, int, int]] = set()
@@ -50,22 +52,39 @@ class PollingUsbMonitor:
                 vid = dev.idVendor
                 pid = dev.idProduct
                 if vid in self.target_vids and pid in self.target_pids:
+                    key = (vid, pid, dev.bus, dev.address)
                     # Windows Plug-and-Play is slow to bind the WinUSB driver.
                     # Do not emit the device until the descriptors are actually readable.
                     if sys.platform == "win32":
-                        try:
-                            _ = dev[0]
-                        except usb.core.USBError:
+                        if key in self._verified_devices:
+                            seen.add(key)
+                            usb.util.dispose_resources(dev)
                             continue
-                    seen.add((vid, pid, dev.bus, dev.address))
+
+                        readable = False
+                        for attempt in range(6):
+                            try:
+                                _ = dev[0]
+                                readable = True
+                                break
+                            except usb.core.USBError:
+                                if attempt < 5:
+                                    time.sleep(0.1)
+                        if not readable:
+                            usb.util.dispose_resources(dev)
+                            continue
+                        self._verified_devices.add(key)
+                    seen.add(key)
+                usb.util.dispose_resources(dev)
+            if sys.platform == "win32":
+                self._verified_devices &= seen
         except Exception as e:
             logger.error(f"USB poll error: {e}")
         return seen
 
     def _run(self) -> None:
-        prev = self._snapshot()
+        prev: set[tuple[int, int, int, int]] = set()
         while not self._stop.is_set():
-            time.sleep(self._interval)
             curr = self._snapshot()
             for key in curr - prev:
                 vid, pid, _bus, _addr = key
@@ -80,6 +99,7 @@ class PollingUsbMonitor:
                     self.event_queue.put_nowait, ("remove", vid, pid, "")
                 )
             prev = curr
+            time.sleep(self._interval)
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -99,14 +119,6 @@ class PollingUsbMonitor:
         pid: int | None = None,
     ) -> tuple[str, int, int, str]:
         while True:
-            if "add" in actions:
-                for e_vid, e_pid, _bus, _addr in self._snapshot():
-                    if vid is not None and e_vid != vid:
-                        continue
-                    if pid is not None and e_pid != pid:
-                        continue
-                    return "add", e_vid, e_pid, ""
-
             action, e_vid, e_pid, node = await self.event_queue.get()
             if action not in actions:
                 continue

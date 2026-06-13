@@ -102,8 +102,18 @@ jobs:
           fi
           
           dmg_file="dist/SMHUB-Flasher-Mac-Intel.dmg"
-          hdiutil create -volname "SMHUB-Flasher" -srcfolder "$app_bundle" -ov -format UDZO "$dmg_file"
+          staging_dir="$(mktemp -d)"
+          cp -R "$app_bundle" "$staging_dir/"
+
+          tmp_dmg="/tmp/SMHUB-Flasher-Mac-Intel.dmg"
+          hdiutil create \
+            -volname "SMHUB-Flasher" \
+            -srcfolder "$staging_dir" \
+            -ov \
+            -format UDZO \
+            "$tmp_dmg"
           
+          mv "$tmp_dmg" "$dmg_file"
           echo "SMHUB-Flasher packaged successfully to DMG"
 
       - name: Upload artifact

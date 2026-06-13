@@ -10,3 +10,7 @@ dev/
 .claude/
 windows_gui/dist/
 gui/vendor/
+.flatpak-builder/
+build-dir/
+repo/
+*.flatpak

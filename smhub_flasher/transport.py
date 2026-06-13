@@ -48,6 +48,7 @@ class UsbTransport:
         self.ep_out: usb.core.Endpoint | None = None
         self.intf_number: int | None = None
         self.last_ack_packet: Sequence[int] | None = None
+        self._claimed_intf: int | None = None
 
     @staticmethod
     def probe_access(vid: int, pid: int) -> None:
@@ -62,6 +63,8 @@ class UsbTransport:
                 raise UsbPermissionError(
                     f"USB access denied for {vid:04x}:{pid:04x}"
                 ) from e
+        finally:
+            usb.util.dispose_resources(dev)
 
     def connect_sync(self) -> None:
         """Synchronously find and configure device."""
@@ -72,22 +75,47 @@ class UsbTransport:
                     f"Device {self.vid:04x}:{self.pid:04x} not found by pyusb."
                 )
 
-        if sys.platform == "linux":
-            try:
-                if self.device.is_kernel_driver_active(1):
-                    self.device.detach_kernel_driver(1)
-                    logger.debug("Detached kernel driver")
-            except NotImplementedError:
-                pass
-            except usb.USBError as e:
-                if getattr(e, "errno", None) == 13:
-                    raise UsbPermissionError(
-                        f"USB access denied for {self.vid:04x}:{self.pid:04x}"
-                    ) from e
-                logger.warning(f"Failed to detach kernel driver: {e}")
+        try:
+            if sys.platform == "linux":
+                self._detach_kernel_driver()
 
+            cfg = self._get_configuration()
+            self._configure_endpoints(cfg)
+
+            if self.intf_number is not None:
+                self._claim_interface()
+                self._open_cdc_line()
+            else:
+                self._claimed_intf = None
+        except Exception:
+            if self.device is not None:
+                usb.util.dispose_resources(self.device)
+                self.device = None
+            raise
+
+    def _detach_kernel_driver(self) -> None:
+        if self.device is None:
+            return
+        try:
+            if self.device.is_kernel_driver_active(1):
+                self.device.detach_kernel_driver(1)
+                logger.debug("Detached kernel driver")
+        except NotImplementedError:
+            pass
+        except usb.core.USBError as e:
+            if getattr(e, "errno", None) == 13:
+                raise UsbPermissionError(
+                    f"USB access denied for {self.vid:04x}:{self.pid:04x}"
+                ) from e
+            logger.warning(f"Failed to detach kernel driver: {e}")
+
+    def _get_configuration(self) -> usb.core.Configuration:
+        if self.device is None:
+            raise RuntimeError("Device not initialized")
         try:
             cfg = self.device[0]
+            assert isinstance(cfg, usb.core.Configuration)
+            return cfg
         except usb.core.USBError as e:
             if getattr(e, "errno", None) == 13:
                 raise UsbPermissionError(
@@ -97,6 +125,7 @@ class UsbTransport:
                 f"Failed to retrieve device configuration descriptors: {e}"
             )
 
+    def _configure_endpoints(self, cfg: usb.core.Configuration) -> None:
         self.ep_in = None
         self.ep_out = None
 
@@ -122,19 +151,16 @@ class UsbTransport:
         if not self.ep_out or not self.ep_in:
             raise RuntimeError("Could not find Bulk IN/OUT endpoints")
 
-        if self.intf_number is not None:
-            self._claimed_intf = None
-            try:
-                usb.util.claim_interface(self.device, self.intf_number)
-                self._claimed_intf = self.intf_number
-                logger.debug(f"Claimed interface {self.intf_number}")
-            except usb.USBError as e:
-                logger.debug(f"claim_interface({self.intf_number}) failed: {e}")
-                self._claimed_intf = None
-
-            self._open_cdc_line()
-
-        else:
+    def _claim_interface(self) -> None:
+        if self.device is None or self.intf_number is None:
+            return
+        self._claimed_intf = None
+        try:
+            usb.util.claim_interface(self.device, self.intf_number)
+            self._claimed_intf = self.intf_number
+            logger.debug(f"Claimed interface {self.intf_number}")
+        except usb.core.USBError as e:
+            logger.debug(f"claim_interface({self.intf_number}) failed: {e}")
             self._claimed_intf = None
 
     def _open_cdc_line(self) -> None:
@@ -382,6 +408,8 @@ class UsbTransport:
         """Sends a file over USB in chunks"""
 
         def run_sender() -> int:
+            import time
+
             with open(file_path, "rb") as f:
                 f.seek(start_offset)
                 bytes_sent = 0
@@ -400,16 +428,26 @@ class UsbTransport:
                     if not buf:
                         break
 
-                    ret = self._send_chunk_sync(
-                        buf,
-                        addr,
-                        is_magic=is_magic,
-                        timeout=5000,
-                    )
-
-                    if ret != SUCCESS:
+                    max_retries = 3
+                    for attempt in range(max_retries + 1):
+                        ret = self._send_chunk_sync(
+                            buf,
+                            addr,
+                            is_magic=is_magic,
+                            timeout=5000,
+                        )
+                        if ret == SUCCESS:
+                            break
+                        if attempt < max_retries:
+                            logger.warning(
+                                f"Failed to send chunk at address {addr:08x} "
+                                f"(attempt {attempt + 1}/{max_retries + 1}). "
+                                "Retrying in 100ms..."
+                            )
+                            time.sleep(0.1)
+                    else:
                         raise RuntimeError(
-                            f"Failed to send chunk at address {addr:08x}"
+                            f"Failed to send chunk at address {addr:08x} after {max_retries + 1} attempts."
                         )
 
                     addr += len(buf)
