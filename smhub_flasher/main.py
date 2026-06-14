@@ -15,7 +15,7 @@ from rich.logging import RichHandler
 from rich.markdown import Markdown
 
 from . import downloader
-from .exceptions import UsbPermissionError
+from .exceptions import FlashError, UsbPermissionError
 from .flasher_fsm import FlasherFSM
 from .monitor import UsbMonitor
 
@@ -478,8 +478,14 @@ def main() -> None:
                 "[yellow]The OS denied access to the USB device. Try running as Administrator.[/yellow]\n"
             )
         sys.exit(1)
+    except FlashError as e:
+        console.print(f"\n[red]  ✗  {e}[/red]\n")
+        sys.exit(1)
     except usb.core.USBError as e:
         console.print(f"\n[red]  ✗  FATAL USB Error: {e}[/red]\n")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"\n[red]  ✗  Unexpected error: {e}[/red]\n")
         sys.exit(1)
 
 
