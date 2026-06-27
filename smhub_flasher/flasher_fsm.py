@@ -152,6 +152,9 @@ class FlasherFSM:
                     logger.warning(
                         f"  [yellow]⚠[/yellow] USB connection failed ({e}). Retrying detection..."
                     )
+                    await asyncio.sleep(0.5)
+                    if hasattr(self.monitor, "clear_queue"):
+                        self.monitor.clear_queue()
                     vid, pid = await self._wait_for_usb_device(*wait_ids)
                 else:
                     raise

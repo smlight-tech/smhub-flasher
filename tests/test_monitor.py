@@ -64,3 +64,14 @@ async def test_polling_event_cycle() -> None:
 
         # Clean up
         monitor.stop()
+
+
+@pytest.mark.asyncio
+async def test_polling_clear_queue() -> None:
+    monitor = PollingUsbMonitor(target_vids=[0x3346], target_pids=[0x1000])
+    await monitor.event_queue.put(("add", 0x3346, 0x1000, ""))
+    await monitor.event_queue.put(("add", 0x3346, 0x1000, ""))
+
+    assert monitor.event_queue.qsize() == 2
+    monitor.clear_queue()
+    assert monitor.event_queue.qsize() == 0

@@ -112,6 +112,13 @@ class PollingUsbMonitor:
             self._thread.join(timeout=1.0)
         logger.info("USB Monitor stopped")
 
+    def clear_queue(self) -> None:
+        while not self.event_queue.empty():
+            try:
+                self.event_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
     async def wait_for_device(
         self,
         actions: tuple[str, ...] = ("add",),
@@ -132,7 +139,9 @@ class PollingUsbMonitor:
                     for dev in usb.core.find(find_all=True):
                         if dev.idVendor == e_vid and dev.idProduct == e_pid:
                             present = True
+                            usb.util.dispose_resources(dev)
                             break
+                        usb.util.dispose_resources(dev)
                 except Exception:
                     present = True
                 if not present:
