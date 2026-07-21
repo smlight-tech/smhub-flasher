@@ -364,7 +364,7 @@ class UsbTransport:
                             )
                         err_str = str(e).lower()
                         errno = getattr(e, "errno", None)
-                        if errno == 32:
+                        if "pipe" in err_str or errno == 32:
                             self._clear_halt_safely(
                                 self.ep_out if is_out else self.ep_in
                             )
