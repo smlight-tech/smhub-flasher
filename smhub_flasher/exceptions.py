@@ -4,3 +4,7 @@
 
 class UsbPermissionError(PermissionError):
     """Raised when the USB device cannot be opened due to insufficient permissions (EACCES)."""
+
+
+class FlashError(RuntimeError):
+    """Raised when a fatal error occurs during the flashing process."""

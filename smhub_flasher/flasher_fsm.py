@@ -12,6 +12,7 @@ from typing import Any
 from rich.console import Console
 
 from . import events
+from .exceptions import FlashError
 from .monitor import UsbMonitor
 from .transport import (
     CV_USB_BREAK,
@@ -526,10 +527,8 @@ class FlasherFSM:
         try:
             logger.debug("Querying U-Boot CVI_UPDATE for IMG_ADDR")
             recvbuf = await self._send_cvi_update_query()
-            if not recvbuf or not self.transport:
-                _err("Failed to receive image address from device")
-                self.state = "DONE"
-                return
+            if not recvbuf or len(recvbuf) < 8 or not self.transport:
+                raise FlashError("Failed to receive image address from device")
 
             image_addr = int.from_bytes(recvbuf[0:8], byteorder="little")
             logger.debug(f"Target memory address (IMG_ADDR): 0x{image_addr:08x}")
@@ -572,6 +571,10 @@ class FlasherFSM:
             await asyncio.sleep(0.5)
 
             recvbuf = await self._send_cvi_update_query()
+            if not recvbuf or len(recvbuf) < 8 or not self.transport:
+                raise FlashError(
+                    "Failed to receive image address from device during second query"
+                )
             image_addr = int.from_bytes(recvbuf[0:8], byteorder="little")
 
             emmc_size = os.path.getsize(self.emmc_path)
@@ -644,6 +647,7 @@ class FlasherFSM:
             _err(f"eMMC flash failed: {e}")
             logger.exception(e)
             self.state = "DONE"
+            raise e
 
     def _resolve_fastboot_bin(self) -> bool:
         """Locate fastboot in current bundled resource layout or PATH."""
@@ -876,28 +880,37 @@ class FlasherFSM:
                 "      Fastboot requires either a raw disk image or an Android Sparse image."
             )
 
-        if not self._resolve_fastboot_bin():
-            self.state = "DONE"
-            return
+        try:
+            if not self._resolve_fastboot_bin():
+                raise FlashError("Failed to locate fastboot binary")
 
-        # ── Bootloader flash (mmc0boot0) — skipped by default in slot-only mode ──
-        slot_only = bool(self.kernel_path or self.rootfs_path) and not self.emmc_path
-        if self.no_bootloader and slot_only:
-            logger.info(
-                "  [yellow]⚠[/yellow]  Skipping 'mmc0boot0' bootloader flash (use --flash-bootloader to include it)."
+            # ── Bootloader flash (mmc0boot0) — skipped by default in slot-only mode ──
+            slot_only = (
+                bool(self.kernel_path or self.rootfs_path) and not self.emmc_path
             )
-        else:
-            if not await self._fastboot_flash_bootloader():
-                self.state = "DONE"
-                return
+            if self.no_bootloader and slot_only:
+                logger.info(
+                    "  [yellow]⚠[/yellow]  Skipping 'mmc0boot0' bootloader flash (use --flash-bootloader to include it)."
+                )
+            else:
+                if not await self._fastboot_flash_bootloader():
+                    raise FlashError("Failed to flash bootloader partition (mmc0boot0)")
 
-        if self.bootloader_only:
-            _section("Rebooting")
-            await self._run_fastboot(["reboot"], "Rebooting device")
-            _ok("Bootloader flash complete!")
-        elif slot_only:
-            await self._fastboot_flash_slot()
-        else:
-            await self._fastboot_flash_full_image()
+            if self.bootloader_only:
+                _section("Rebooting")
+                if not await self._run_fastboot(["reboot"], "Rebooting device"):
+                    raise FlashError("Failed to reboot device after bootloader flash")
+                _ok("Bootloader flash complete!")
+            elif slot_only:
+                if not await self._fastboot_flash_slot():
+                    raise FlashError("Failed to flash slot partition(s)")
+            else:
+                if not await self._fastboot_flash_full_image():
+                    raise FlashError("Failed to flash full eMMC image")
 
-        self.state = "DONE"
+            self.state = "DONE"
+        except Exception as e:
+            _err(f"Fastboot flash failed: {e}")
+            logger.exception(e)
+            self.state = "DONE"
+            raise e

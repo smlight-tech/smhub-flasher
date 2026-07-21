@@ -115,6 +115,7 @@ from flasher_runner import FlasherRunner
 
 import smhub_flasher.downloader as downloader
 from console import SerialConsole
+from smhub_flasher._version import __version__
 
 
 def resource_path(relative: str) -> str:
@@ -166,6 +167,12 @@ class Api:
 
     def bind_window(self, window: webview.Window) -> None:
         self._window = window
+
+    def get_app_info(self) -> dict:
+        return {
+            "version": __version__,
+            "platform": sys.platform,
+        }
 
     def set_log_expanded(self, expanded: bool) -> None:
         if not self._window:
