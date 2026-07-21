@@ -306,13 +306,13 @@ class UsbTransport:
             return False
         errno = getattr(err, "errno", None)
         msg = str(err).lower()
-        if errno in (5, 19, 32):
+        # 19=No such device, 5=Input/output error, 71=Protocol error
+        if errno in (5, 19, 71):
             return True
         return (
             "no such device" in msg
             or "disconnected" in msg
             or "has been disconnected" in msg
-            or "pipe" in msg
         )
 
     def _send_req_data_sync(
@@ -343,33 +343,71 @@ class UsbTransport:
 
         if ack:
             cmd_crc = self._crc16(cmd)
-            try:
-                self.ep_out.write(cmd, timeout=timeout)
-                rsp = self.ep_in.read(16, timeout=timeout)
 
-                if logger.isEnabledFor(TRACE):
-                    logger.log(
-                        TRACE,
-                        f"USB REQ OUT: {bytes(cmd).hex()} | IN: {bytes(rsp).hex()}",
-                    )
+            import time
 
-                # CVI_PROGRAM/REBOOT does not ACK normally with CRC
-                if token in [CVI_USB_PROGRAM, CVI_USB_REBOOT]:
-                    return rsp
+            start_time = time.time()
 
-                ret_crc = (rsp[2] * 256) + rsp[3]
-                if ret_crc == cmd_crc:
-                    return rsp
-                logger.error(
-                    f"ACK_CRC_ERROR on req_data: expected {cmd_crc:04x}, got {ret_crc:04x} (Full Rx: {bytes(rsp).hex()})"
+            def _do_io(is_out: bool) -> Any:
+                assert self.ep_out is not None
+                assert self.ep_in is not None
+                while True:
+                    try:
+                        if is_out:
+                            return self.ep_out.write(cmd, timeout=1000)
+                        else:
+                            return self.ep_in.read(16, timeout=1000)
+                    except usb.USBError as e:
+                        if self._is_usb_disconnect_error(e):
+                            raise RuntimeError(
+                                f"USB disconnected during {'OUT' if is_out else 'IN'} req: {e}"
+                            )
+                        err_str = str(e).lower()
+                        errno = getattr(e, "errno", None)
+                        if errno == 32:
+                            self._clear_halt_safely(
+                                self.ep_out if is_out else self.ep_in
+                            )
+                            time.sleep(0.1 if is_out else 0.5)
+                        elif errno in (110, 10060) or "timeout" in err_str:
+                            pass
+                        else:
+                            logger.error(
+                                f"Req data {'OUT' if is_out else 'IN'} failed: {e}"
+                            )
+                            return None
+                    except Exception as e:
+                        logger.error(
+                            f"Req data {'OUT' if is_out else 'IN'} failed (unknown): {e}"
+                        )
+                        return None
+
+                    if (time.time() - start_time) * 1000 > timeout:
+                        logger.error(f"Req data IO timed out after {timeout}ms")
+                        return None
+
+            if _do_io(is_out=True) is None:
+                return None
+            rsp = _do_io(is_out=False)
+            if rsp is None:
+                return None
+
+            if logger.isEnabledFor(TRACE):
+                logger.log(
+                    TRACE,
+                    f"USB REQ OUT: {bytes(cmd).hex()} | IN: {bytes(rsp).hex()}",
                 )
-            except Exception as e:
-                logger.error(f"Req data IO failed: {e}")
-                err_str = str(e).lower()
-                errno = getattr(e, "errno", None)
-                if "pipe" in err_str or errno in (32, 19):
-                    self._clear_halt_safely(self.ep_out)
-                    self._clear_halt_safely(self.ep_in)
+
+            # CVI_PROGRAM/REBOOT does not ACK normally with CRC
+            if token in [CVI_USB_PROGRAM, CVI_USB_REBOOT]:
+                return rsp
+
+            ret_crc = (rsp[2] * 256) + rsp[3]
+            if ret_crc == cmd_crc:
+                return rsp
+            logger.error(
+                f"ACK_CRC_ERROR on req_data: expected {cmd_crc:04x}, got {ret_crc:04x} (Full Rx: {bytes(rsp).hex()})"
+            )
             return None
         else:
             if logger.isEnabledFor(TRACE):
