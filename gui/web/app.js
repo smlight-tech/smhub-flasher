@@ -586,6 +586,17 @@ async function init() {
     dr = {};
     appendLog("Driver check error: " + e);
   }
+  
+  try {
+    const appInfo = await window.pywebview.api.get_app_info();
+    const footerText = $("footer-text");
+    if (footerText && appInfo) {
+      footerText.textContent = `© 2026 SMLIGHT · GPLv3 | Version ${appInfo.version} | ${appInfo.platform}`;
+    }
+  } catch (e) {
+    appendLog("Failed to fetch app info: " + e);
+  }
+  
   // Show the driver screen only on Windows when the WinUSB driver is missing.
   if (dr.platform === "win32" && !dr.winusb_bound) {
     show("driver");
