@@ -566,6 +566,12 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.66.0" },
 ]
 
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+]
+
 [[package]]
 name = "smhub-flasher-gui"
 version = "0.1.0"

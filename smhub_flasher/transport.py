@@ -51,6 +51,15 @@ class UsbTransport:
         self._claimed_intf: int | None = None
 
     @staticmethod
+    def is_present(vid: int, pid: int) -> bool:
+        """Return True if a device with this VID:PID is currently on the bus."""
+        dev = usb.core.find(idVendor=vid, idProduct=pid)
+        if dev is None:
+            return False
+        usb.util.dispose_resources(dev)
+        return True
+
+    @staticmethod
     def probe_access(vid: int, pid: int) -> None:
         """Try to read the device descriptor; raise UsbPermissionError on EACCES."""
         dev = usb.core.find(idVendor=vid, idProduct=pid)

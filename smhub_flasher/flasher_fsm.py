@@ -102,6 +102,9 @@ class FlasherFSM:
         self.transport: UsbTransport | None = None
         self.state: str = "INIT"
         self._fastboot_bin: str = "fastboot"
+        # Guards against the Stage 2 ROM handing back the same FIP window forever
+        self._last_fip_bounds: tuple[int, int] | None = None
+        self._fip_stall_count: int = 0
 
     async def run(self) -> None:
         self.state = "WAIT_ROM"
@@ -125,13 +128,38 @@ class FlasherFSM:
                 logger.error(f"Unknown state: {self.state}")
                 return
 
-    async def _wait_for_usb_device(self, *ids: tuple[int, int]) -> tuple[int, int]:
+    async def _wait_for_add_event(self, *ids: tuple[int, int]) -> tuple[int, int]:
         while True:
             action, e_vid, e_pid, _ = await self.monitor.wait_for_device(
                 actions=("add",)
             )
             if (e_vid, e_pid) in ids:
                 return e_vid, e_pid
+
+    async def _wait_for_usb_device(
+        self, *ids: tuple[int, int], probe_after: float = 5.0
+    ) -> tuple[int, int]:
+        """Wait for a hotplug 'add' event, falling back to a presence probe.
+
+        The polling monitor derives events from the difference between 200ms
+        bus snapshots, so a re-enumeration that starts and finishes inside one
+        poll window — or a stage that never drops off the bus at all — produces
+        no event. Waiting on the edge alone would then block forever, so after
+        `probe_after` seconds check whether the device is simply already there.
+        """
+        while True:
+            try:
+                return await asyncio.wait_for(
+                    self._wait_for_add_event(*ids), timeout=probe_after
+                )
+            except TimeoutError:
+                for vid, pid in ids:
+                    if await asyncio.to_thread(UsbTransport.is_present, vid, pid):
+                        logger.debug(
+                            f"No add event for {vid:04x}:{pid:04x} within "
+                            f"{probe_after}s, but device is present — proceeding"
+                        )
+                        return vid, pid
 
     async def _connect_transport(
         self, vid: int, pid: int, *wait_ids: tuple[int, int]
@@ -200,7 +228,8 @@ class FlasherFSM:
 
                     try:
                         vid, pid = await asyncio.wait_for(
-                            self._wait_for_usb_device(ROM_IDS), timeout=5.0
+                            self._wait_for_usb_device(ROM_IDS, probe_after=2.0),
+                            timeout=5.0,
                         )
                         logger.debug(
                             f"BootROM re-enumerated after first magic: {vid:04x}:{pid:04x}"
@@ -247,7 +276,8 @@ class FlasherFSM:
                     logger.debug("Waiting for device re-enumeration...")
                     try:
                         vid, pid = await asyncio.wait_for(
-                            self._wait_for_usb_device(ROM_IDS), timeout=5.0
+                            self._wait_for_usb_device(ROM_IDS, probe_after=2.0),
+                            timeout=5.0,
                         )
                         if sys.platform in ("win32", "darwin"):
                             await asyncio.sleep(0.5)
@@ -327,6 +357,19 @@ class FlasherFSM:
 
             fip_req_size = self.fip_tx_size
             fip_req_offset = self.fip_tx_offset
+
+            bounds = (fip_req_offset, fip_req_size)
+            if bounds == self._last_fip_bounds:
+                self._fip_stall_count += 1
+                if self._fip_stall_count >= 3:
+                    raise RuntimeError(
+                        f"Stage 2 ROM requested the same FIP window "
+                        f"(offset {fip_req_offset}, size {fip_req_size}) "
+                        f"{self._fip_stall_count} times — device is not advancing"
+                    )
+            else:
+                self._last_fip_bounds = bounds
+                self._fip_stall_count = 0
 
             await self.transport.send_file_chunked(
                 self.fip_path,
