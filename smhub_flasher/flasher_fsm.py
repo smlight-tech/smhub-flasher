@@ -106,6 +106,27 @@ class FlasherFSM:
         self._last_fip_bounds: tuple[int, int] | None = None
         self._fip_stall_count: int = 0
 
+    def _reset_fip_stall_guard(self) -> None:
+        """Clear Stage 2 FIP window stall tracking."""
+        self._last_fip_bounds = None
+        self._fip_stall_count = 0
+
+    def _track_fip_window_progress(self, offset: int, size: int) -> None:
+        """Raise when Stage 2 requests the same FIP window repeatedly."""
+        bounds = (offset, size)
+        if bounds == self._last_fip_bounds:
+            self._fip_stall_count += 1
+        else:
+            self._last_fip_bounds = bounds
+            self._fip_stall_count = 1
+
+        if self._fip_stall_count >= 3:
+            raise RuntimeError(
+                f"Stage 2 ROM requested the same FIP window "
+                f"(offset {offset}, size {size}) "
+                f"{self._fip_stall_count} consecutive times; device is not advancing"
+            )
+
     async def run(self) -> None:
         self.state = "WAIT_ROM"
 
@@ -189,6 +210,7 @@ class FlasherFSM:
         raise RuntimeError("Unreachable")
 
     async def _state_wait_rom(self) -> None:
+        self._reset_fip_stall_guard()
         _section("BootROM Detection")
         spinner = asyncio.create_task(
             _spin("Waiting for device to enter BootROM mode...")
@@ -357,19 +379,7 @@ class FlasherFSM:
 
             fip_req_size = self.fip_tx_size
             fip_req_offset = self.fip_tx_offset
-
-            bounds = (fip_req_offset, fip_req_size)
-            if bounds == self._last_fip_bounds:
-                self._fip_stall_count += 1
-                if self._fip_stall_count >= 3:
-                    raise RuntimeError(
-                        f"Stage 2 ROM requested the same FIP window "
-                        f"(offset {fip_req_offset}, size {fip_req_size}) "
-                        f"{self._fip_stall_count} times — device is not advancing"
-                    )
-            else:
-                self._last_fip_bounds = bounds
-                self._fip_stall_count = 0
+            self._track_fip_window_progress(fip_req_offset, fip_req_size)
 
             await self.transport.send_file_chunked(
                 self.fip_path,

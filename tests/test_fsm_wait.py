@@ -23,6 +23,36 @@ def _fsm() -> FlasherFSM:
     return FlasherFSM(SilentMonitor(), fip_path="fip.bin", emmc_path="emmc.img")
 
 
+def test_fip_stall_guard_raises_on_third_consecutive_repeat() -> None:
+    fsm = _fsm()
+
+    fsm._track_fip_window_progress(0, 4096)
+    fsm._track_fip_window_progress(0, 4096)
+    with pytest.raises(RuntimeError, match="3 consecutive times"):
+        fsm._track_fip_window_progress(0, 4096)
+
+
+def test_fip_stall_guard_resets_when_window_changes() -> None:
+    fsm = _fsm()
+
+    fsm._track_fip_window_progress(0, 4096)
+    fsm._track_fip_window_progress(0, 4096)
+    fsm._track_fip_window_progress(4096, 4096)
+    # After progress, this is only the second observation of the new window.
+    fsm._track_fip_window_progress(4096, 4096)
+
+
+def test_fip_stall_guard_manual_reset_clears_prior_repeats() -> None:
+    fsm = _fsm()
+
+    fsm._track_fip_window_progress(0, 4096)
+    fsm._track_fip_window_progress(0, 4096)
+    fsm._reset_fip_stall_guard()
+    # Fresh sequence after reset should not raise until the third observation.
+    fsm._track_fip_window_progress(0, 4096)
+    fsm._track_fip_window_progress(0, 4096)
+
+
 @pytest.mark.asyncio
 async def test_falls_back_to_presence_probe_when_no_add_event() -> None:
     """A re-enumeration missed by the poller must not block forever."""
