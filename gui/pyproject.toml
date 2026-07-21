@@ -9,6 +9,7 @@ dependencies = [
     "pyserial>=3.5",
     "libusb-package; sys_platform != 'linux'",
     "pywin32>=306; sys_platform == 'win32'",
+    "webview2; sys_platform == 'win32'",
     "PyGObject>=3.42.0; sys_platform == 'linux'",
 ]
 
