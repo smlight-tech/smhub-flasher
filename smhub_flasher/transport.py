@@ -216,6 +216,14 @@ class UsbTransport:
     def _crc16(self, hex_data: bytes | bytearray | list[int] | Sequence[int]) -> int:
         return int(fastcrc.crc16.xmodem(bytes(hex_data)))
 
+    def _clear_halt_safely(self, ep: usb.core.Endpoint | None) -> None:
+        if not ep:
+            return
+        try:
+            ep.clear_halt()
+        except Exception as e:
+            logger.debug(f"Failed to clear halt on EP {ep.bEndpointAddress:02x}: {e}")
+
     def _write_sync(
         self, command: bytes | bytearray, recv_ack: bool = True, timeout: int = 5000
     ) -> int:
@@ -233,6 +241,11 @@ class UsbTransport:
             self.ep_out.write(command, timeout)
         except usb.USBError as e:
             logger.debug(f"USB Write Error (ep_out): {e}")
+            err_str = str(e).lower()
+            errno = getattr(e, "errno", None)
+            if "pipe" in err_str or errno in (32, 19):
+                self._clear_halt_safely(self.ep_out)
+                self._clear_halt_safely(self.ep_in)
 
             if self._is_usb_disconnect_error(e):
                 # Abort instantly on physical disconnects or broken pipes
@@ -252,6 +265,11 @@ class UsbTransport:
             ret = self.ep_in.read(16, timeout=timeout)
         except usb.USBError as e:
             logger.error(f"USB Read ACK Error (ep_in): {e}")
+            err_str = str(e).lower()
+            errno = getattr(e, "errno", None)
+            if "pipe" in err_str or errno in (32, 19):
+                self._clear_halt_safely(self.ep_out)
+                self._clear_halt_safely(self.ep_in)
             return FAIL
 
         if len(ret) >= 4:
@@ -277,6 +295,10 @@ class UsbTransport:
             return self.ep_in.read(length, timeout=timeout)
         except usb.USBError as e:
             logger.error(f"Read Data Error (ep_in): {e}")
+            err_str = str(e).lower()
+            errno = getattr(e, "errno", None)
+            if "pipe" in err_str or errno in (32, 19):
+                self._clear_halt_safely(self.ep_in)
             return None
 
     def _is_usb_disconnect_error(self, err: Exception | None) -> bool:
@@ -343,6 +365,11 @@ class UsbTransport:
                 )
             except Exception as e:
                 logger.error(f"Req data IO failed: {e}")
+                err_str = str(e).lower()
+                errno = getattr(e, "errno", None)
+                if "pipe" in err_str or errno in (32, 19):
+                    self._clear_halt_safely(self.ep_out)
+                    self._clear_halt_safely(self.ep_in)
             return None
         else:
             if logger.isEnabledFor(TRACE):
