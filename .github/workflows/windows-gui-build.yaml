@@ -108,12 +108,33 @@ jobs:
       - name: Compile Inno Setup Installer
         shell: pwsh
         run: |
+          $tag = "${{ github.event.release.tag_name }}"
+          if ($env:GITHUB_EVENT_NAME -eq 'release' -and $tag) {
+            if ($tag -match '^gui-v?(.+)$') {
+              $version = $Matches[1]
+            } else {
+              throw "Release tag '$tag' is not a gui-* version tag; expected gui-v1.2.3 or gui-1.2.3"
+            }
+          } else {
+            $gitRef = "$env:GITHUB_REF_NAME"
+            if (-not $gitRef -or $gitRef -eq 'undefined' -or $gitRef -eq '') {
+              $gitRef = (git rev-parse --abbrev-ref HEAD 2>$null)
+            }
+            if (-not $gitRef -or $gitRef -eq 'HEAD' -or $gitRef -eq 'undefined') {
+              $gitRef = 'dev'
+            }
+            $revCount = (git rev-list --count HEAD 2>$null)
+            if (-not $revCount) { $revCount = 0 }
+            $refHash = [Math]::Abs([System.StringComparer]::OrdinalIgnoreCase.GetHashCode($gitRef)) % 10000
+            $version = "0.$revCount.$refHash"
+          }
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) {
             $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Path
           }
           if (-not $iscc) { throw "Inno Setup Compiler (ISCC.exe) not found on runner!" }
-          & $iscc installer.iss
+          Write-Host "Installer version: $version (git ref: $gitRef)"
+          & $iscc "/DMyAppVersion=$version" installer.iss
 
       - name: Verify output
         shell: pwsh

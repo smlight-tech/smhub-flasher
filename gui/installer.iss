@@ -6,11 +6,13 @@
 #define MyAppPublisher "SMLIGHT"
 #define MyAppURL "https://github.com/smlight-tech/smhub-flasher"
 #define MyAppExeName "SMHUB-Flasher.exe"
+; Version is provided at build time via /DMyAppVersion=... to avoid drift.
+#define MyAppVersion "0.0.0"
 
 [Setup]
 AppId={{D37E84B5-741E-47F1-8B0C-1A6E7C974B8D}
 AppName={#MyAppName}
-AppVersion=0.1.0
+AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
